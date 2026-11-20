@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "UI skin",
+    "description": "Static wallpaper, per-area transparency, bottom input-bar and accent colors, plus custom home headline text. Configure it in Settings > Appearance; changes apply immediately and are saved to your DSH profile. Wallpaper is a local image or a gradient you pick on a color wheel — nothing is downloaded or sent anywhere.",
+    "detail": "docs/DETAIL.md"
+  }
+}
