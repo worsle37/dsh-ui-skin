@@ -39,9 +39,13 @@ dsh plugin --profile desktop add "link:<本目录绝对路径>"
 > 从 npm / git 安装（`dsh plugin --profile desktop add github:<owner>/<repo>` 或包名）会自动装依赖。
 > 升级本插件后如果新增/删除了设置字段，也要重启 DSH，旧进程里的 Host 配置 schema 不会热更新。
 
-### 方式 B：从 npm（发布后）
+### 方式 B：从 GitHub / npm
 
 ```powershell
+# 直接从这个仓库装
+dsh plugin --profile desktop add github:worsle37/dsh-ui-skin
+
+# 或发布到 npm 后按包名装
 dsh plugin --profile desktop add dsh-ui-skin
 ```
 
@@ -109,12 +113,15 @@ dsh-ui-skin/
 ├─ client.js           # 浏览器半：玻璃皮肤 / 设置页 / 首页补丁（全部逻辑）
 ├─ locale/{zh,en}.json # 插件页显示的标题与说明
 ├─ icon.svg            # 插件图标
-├─ docs/               # 插件详情页图片（preview.svg）
+├─ docs/               # 插件详情页图片（preview.svg）+ 开发记录（DEVLOG.md）
+│                        # 改代码前先读 docs/DEVLOG.md：架构、机制、坑、下一步
 ├─ scripts/dev-instance.ps1  # 起隔离测试实例（不碰 desktop）
 └─ LICENSE
 ```
 
 ## 开发
+
+> 先读 [docs/DEVLOG.md](docs/DEVLOG.md)：当前版本、架构、关键机制、已知限制与下一步。
 
 ```powershell
 # 语法检查（不需要构建）
