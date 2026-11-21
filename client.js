@@ -640,8 +640,9 @@ html::after {
       if (cfg.frostBlur > 0) overlayAlpha = clamp(overlayAlpha * 0.72, 0.45, 1)
       if (cfg.frostBlur > 0) {
         // 左右侧边栏要磨砂，底色调得薄一点壁纸才透得出来；中间对话区保持原样不动。
-        sidebar.alpha = clamp(sidebar.alpha * 0.86, 0.42, 1)
-        files.alpha = clamp(files.alpha * 0.9, 0.5, 1)
+        // 只做很小的折算（0.95），保证「底色 + 不透明度」设置所见即所得，不会把颜色洗白。
+        sidebar.alpha = clamp(sidebar.alpha * 0.95, 0.5, 1)
+        files.alpha = clamp(files.alpha * 0.95, 0.55, 1)
       }
       return {
         scheme,
@@ -682,8 +683,8 @@ html::after {
       const highlight = cfg.frostHighlight !== false && kind === 'panel'
       const lines = []
       if (blur > 0) {
-        lines.push(`  backdrop-filter: blur(${blur}px) saturate(135%);`)
-        lines.push(`  -webkit-backdrop-filter: blur(${blur}px) saturate(135%);`)
+        lines.push(`  backdrop-filter: blur(${blur}px) saturate(110%);`)
+        lines.push(`  -webkit-backdrop-filter: blur(${blur}px) saturate(110%);`)
       }
       if (kind === 'card') return lines.join('\n')
       const images = []
@@ -1690,7 +1691,7 @@ ${wallpaperCss(cfg)}
         wallpaper: '壁纸',
         wallpaperHint: '壁纸只支持静态图片或纯色/渐变，不做动画。',
         frost: '玻璃质感',
-        frostHint: '左右侧边栏整体磨砂，对话框、菜单、卡片也磨砂；中间对话区保持原来的半透明玻璃（不磨）。',
+        frostHint: '左右侧边栏整体磨砂，对话框、菜单、卡片也磨砂；中间对话区保持原来的半透明玻璃（不磨）。磨砂强度 0 = 关闭。',
         frostBlur: '磨砂强度',
         frostBlurHint: '0 = 关闭；越大越像亚克力。只影响卡片和弹层，不影响聊天背景。',
         frostGrain: '噪点纹理',
