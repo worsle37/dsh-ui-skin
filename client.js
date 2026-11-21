@@ -636,6 +636,13 @@ html::after {
         // 对话框后面通常还有半透明遮罩，按「遮罩之后的背景」估算可读性
         overlayAlpha = ensureReadable(overlayAlpha, overlayBase, blendRgb(wall, { r: 0, g: 0, b: 0 }, 0.5), text)
       }
+      // 开磨砂时把弹层底色调薄一点，否则 88% 不透明度会把 blurred 背景全盖住、看不到磨砂。
+      if (cfg.frostBlur > 0) overlayAlpha = clamp(overlayAlpha * 0.72, 0.45, 1)
+      if (cfg.frostBlur > 0) {
+        // 左右侧边栏要磨砂，底色调得薄一点壁纸才透得出来；中间对话区保持原样不动。
+        sidebar.alpha = clamp(sidebar.alpha * 0.86, 0.42, 1)
+        files.alpha = clamp(files.alpha * 0.9, 0.5, 1)
+      }
       return {
         scheme,
         wall,
@@ -664,24 +671,25 @@ html::after {
 
     /**
      * 磨砂玻璃附加层，全部是 CSS，不改 DOM：
-     *  - `backdrop-filter` 把面板背后的壁纸真正磨模糊（亚克力质感）；
+     *  - `backdrop-filter` 把面板背后的内容真正磨模糊（亚克力质感）；
      *  - 噪点瓦片压住渐变的色带，让玻璃看起来有实体表面；
      *  - 顶部一道细高光 + 内描边，像一片有厚度的玻璃。
-     * @param {'column'|'panel'} kind - 铺满整列的玻璃 / 悬浮的小面板
+     * @param {'column'|'panel'|'card'} kind - 侧边栏整列 / 浮层 / 普通卡片
      */
     function frostCss (cfg, kind) {
       const blur = Math.round(clamp(cfg.frostBlur, 0, 40))
       const grain = Math.round(clamp(cfg.frostGrain, 0, 10))
-      const highlight = cfg.frostHighlight !== false
+      const highlight = cfg.frostHighlight !== false && kind === 'panel'
       const lines = []
       if (blur > 0) {
         lines.push(`  backdrop-filter: blur(${blur}px) saturate(135%);`)
         lines.push(`  -webkit-backdrop-filter: blur(${blur}px) saturate(135%);`)
       }
+      if (kind === 'card') return lines.join('\n')
       const images = []
       const repeats = []
       const sizes = []
-      if (highlight) {
+      if (highlight || kind === 'column') {
         images.push('linear-gradient(180deg, rgba(255,255,255,0.055) 0%, rgba(255,255,255,0.012) 14%, rgba(255,255,255,0) 30%)')
         repeats.push('no-repeat')
         sizes.push('100% 100%')
@@ -697,20 +705,34 @@ html::after {
         lines.push('  background-size: ' + sizes.join(', '))
       }
       if (highlight) {
-        lines.push(kind === 'panel'
-          ? '  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.07), inset 0 0 0 0.5px rgba(255, 255, 255, 0.06)'
-          : '  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), inset 0 0 0 0.5px rgba(255, 255, 255, 0.045)')
+        lines.push('  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.07), inset 0 0 0 0.5px rgba(255, 255, 255, 0.06)')
       }
       return lines.join('\n')
     }
+
+    /**
+     * 哪些元素算「交互卡片 / 浮层」。
+     * DSH 的 CSS Module 类名是「哈希前缀_语义名」，所以用属性子串匹配语义后缀；
+     * 不用硬编码某次构建的哈希（换 DSH 版本也不会全废）。
+     */
+    const FROST_OVERLAY_SELECTOR = [
+      "[role='dialog']", "[role='menu']", "[role='listbox']", "[role='tooltip']",
+      "[class*='_dialog_']", "[class$='_dialog']",
+      "[class*='_popover_']", "[class$='_popover']",
+      "[class*='_tooltip_']", "[class$='_tooltip']",
+      "[class*='_menu_']", "[class$='_menu']",
+    ].join(', ')
+    const FROST_CARD_SELECTOR = "[class*='_card_'], [class$='_card'], [class*='_ioCard']"
 
     function buildCss (cfg, light, dark) {
       const rules = []
       const glass = (state, key) => withAlpha(state[key].color, state[key].alpha)
       // 左列 / 中列：列本身画唯一一层玻璃，内部表面 token 全部透明（见 areaDeclarations）。
+      // 磨砂只加在左侧边栏上（用户要“左右侧栏整体磨砂”）；中间对话区保持平面半透明。
       for (const [mark, key] of [['center', 'chat'], ['sidebar', 'sidebar']]) {
-        rules.push(`html [${MARK}='${mark}'] {\n  background-color: ${glass(light, key)};\n${areaDeclarations(light[key].color, light[key].alpha)}\n${frostCss(cfg, 'column')}\n}`)
-        rules.push(`html body[data-ds-dark-theme] [${MARK}='${mark}'] {\n  background-color: ${glass(dark, key)};\n${areaDeclarations(dark[key].color, dark[key].alpha)}\n${frostCss(cfg, 'column')}\n}`)
+        const columnFrost = mark === 'sidebar' ? frostCss(cfg, 'column') : ''
+        rules.push(`html [${MARK}='${mark}'] {\n  background-color: ${glass(light, key)};\n${areaDeclarations(light[key].color, light[key].alpha)}\n${columnFrost}\n}`)
+        rules.push(`html body[data-ds-dark-theme] [${MARK}='${mark}'] {\n  background-color: ${glass(dark, key)};\n${areaDeclarations(dark[key].color, dark[key].alpha)}\n${columnFrost}\n}`)
       }
       // 右列是 0 宽的轨道（面板挂在上面），画列没用；由 dockkit 容器画一层玻璃。
       for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
@@ -720,6 +742,16 @@ html ${mode}[${MARK}='rightbar'] [data-dockkit-float] {
   background-color: ${glass(state, 'files')};
 ${frostCss(cfg, 'panel')}
 }`)
+      }
+      // 磨砂只给「交互表面」：对话框 / 菜单 / 弹层 / 卡片。
+      // 对话背景保持原来的平面半透明玻璃（用户明确不要整窗磨砂）。
+      const panelFrost = frostCss(cfg, 'panel')
+      if (panelFrost) {
+        rules.push(`html body :is(${FROST_OVERLAY_SELECTOR}) {\n${panelFrost}\n}`)
+      }
+      const cardFrost = frostCss(cfg, 'card')
+      if (cardFrost) {
+        rules.push(`html body :is(${FROST_CARD_SELECTOR}) {\n${cardFrost}\n}`)
       }
       // Windows 桌面：DSH 只给内容区左上角 16px 圆角；皮肤铺满壁纸后那个缺口会显脏，统一拍平。
       rules.push(`html [${MARK}='center'],
@@ -1658,13 +1690,13 @@ ${wallpaperCss(cfg)}
         wallpaper: '壁纸',
         wallpaperHint: '壁纸只支持静态图片或纯色/渐变，不做动画。',
         frost: '玻璃质感',
-        frostHint: '给面板加一层磨砂：把背后的壁纸真正模糊，再用噪点和顶部高光做出实体玻璃的厚度感。',
+        frostHint: '左右侧边栏整体磨砂，对话框、菜单、卡片也磨砂；中间对话区保持原来的半透明玻璃（不磨）。',
         frostBlur: '磨砂强度',
-        frostBlurHint: '0 = 关闭（普通半透明玻璃）；越大越像亚克力。觉得卡就调小一点。',
+        frostBlurHint: '0 = 关闭；越大越像亚克力。只影响卡片和弹层，不影响聊天背景。',
         frostGrain: '噪点纹理',
-        frostGrainHint: '很轻的颗粒，能压住渐变的色带，让玻璃表面不那么“空”。',
+        frostGrainHint: '弹层表面的细颗粒，压住渐变的色带。',
         frostHighlight: '边缘高光',
-        frostHighlightHint: '面板顶部一道细高光 + 一圈内描边，看起来像一片有厚度的玻璃。',
+        frostHighlightHint: '弹层顶部一道细高光 + 一圈内描边。',
         mode: '壁纸类型',
         modeGradient: '渐变',
         modeSolid: '纯色',
@@ -1727,13 +1759,13 @@ ${wallpaperCss(cfg)}
         wallpaper: 'Wallpaper',
         wallpaperHint: 'Static images, solid colors, or gradients only — no animation.',
         frost: 'Frosted glass',
-        frostHint: 'Frosts the panels: genuinely blurs the wallpaper behind them, then adds grain and a top highlight for depth.',
+        frostHint: 'Frosts the left/right sidebars as a whole, plus dialogs, menus and cards. The chat area stays plain translucent.',
         frostBlur: 'Frost strength',
-        frostBlurHint: '0 = off (plain translucent glass); higher looks more like acrylic. Lower it if it feels heavy.',
+        frostBlurHint: '0 = off; higher looks more like acrylic. Affects cards and overlays only, not the chat background.',
         frostGrain: 'Grain',
-        frostGrainHint: 'A very light grain that hides gradient banding and makes the glass feel solid.',
+        frostGrainHint: 'A very light grain on overlays that hides gradient banding.',
         frostHighlight: 'Edge highlight',
-        frostHighlightHint: 'A thin top highlight plus an inner hairline, so the panel reads as a piece of glass.',
+        frostHighlightHint: 'A thin top highlight plus an inner hairline on overlays.',
         mode: 'Wallpaper type',
         modeGradient: 'Gradient',
         modeSolid: 'Solid',

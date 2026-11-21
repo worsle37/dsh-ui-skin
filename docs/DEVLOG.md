@@ -7,7 +7,7 @@
 
 | 项 | 值 |
 | --- | --- |
-| 版本 | **0.3.0** |
+| 版本 | **0.3.1** |
 | 验证过的 DSH | Desktop / Web **0.2.2-rc.5** |
 | 形态 | 单浏览器 bundle（`client.js`，无构建）+ 一个只声明 Config 的 Host 半（`index.js`） |
 | 用户入口 | 设置 → 外观 |
@@ -26,10 +26,13 @@
 - **0.2.1** 图片壁纸可拖动定位：新增 `wallpaperImagePosX/PosY/Scale`，设置页有 16:9 预览
   （拖动选露出区域）、缩放 100–250%、一键居中；尺寸按原图像素用 `cover × zoom` 计算，
   窗口 resize 时重算。
-- **0.3.0** 磨砂玻璃质感：列/右栏面板加 `backdrop-filter: blur() saturate()` 真正模糊背后壁纸
-  （亚克力感），叠一层 SVG `feTurbulence` 噪点压色带，再加顶部高光 + 内描边做「玻璃厚度」。
-  新增 `frostBlur`（0-40，0 = 关闭）、`frostGrain`（0-10）、`frostHighlight`（bool），默认 16/3/开。
-  全 CSS 实现，不改 DOM；觉得重就把强度调小（大面板 backdrop-filter 有 GPU 成本）。
+- **0.3.0** 磨砂玻璃质感：加 `backdrop-filter: blur() saturate()`、SVG `feTurbulence` 噪点、
+  顶部高光/内描边；新增 `frostBlur`（0-40，0 = 关闭）、`frostGrain`（0-10）、`frostHighlight`。
+- **0.3.1** 磨砂范围修正：用户明确「不是对话背景磨砂，是交互卡片/侧边栏」。现在只给
+  **左侧栏整列 + 右侧栏面板 + 对话框/菜单/卡片**加磨砂，**中间对话区保持平面半透明**；
+  开磨砂时把侧栏（×0.86）和弹层（×0.72）底色调薄，否则不透明度会把 blurred 背景全盖住、
+  磨砂看不出来。元素靠语义选择器定位：`[role=dialog|menu|tooltip|listbox]`、`data-dockkit-host/float`、
+  以及 DSH CSS Module 的「哈希前缀_语义后缀」匹配（`[class$='_card']` 等），不硬编码某次构建哈希。
 
 ## 代码结构
 
@@ -70,10 +73,10 @@ scripts/dev-instance.ps1   起隔离测试 profile + Web 实例（不碰 desktop
    受控值回环会让退格/光标跳到末尾。
 9. **弹层**：portal 到 body，吃 body 级 token 覆盖；**菜单材质**在菜单元素内部定义，token 覆盖不到，
    保持 DSH 原生（带背景模糊）。
-10. **磨砂玻璃**：`frostCss()` 生成 `backdrop-filter: blur() saturate()`（真模糊背后的壁纸）+ SVG
-    `feTurbulence` 噪点瓦片（`background-image`，不建 DOM 节点）+ 顶部高光/内描边（`box-shadow`）。
-    因为面板铺满整个窗口，模糊是「整窗磨砂」而不是局部面板——这也意味着调大后壁纸细节会被磨掉，
-    这是效果本身，不是 bug。
+10. **磨砂玻璃**：`frostCss()` 生成 `backdrop-filter: blur() saturate()` + SVG `feTurbulence` 噪点
+    （`background-image`，不建 DOM 节点）+ 顶部高光/内描边（`box-shadow`）。作用范围是
+    **左侧栏整列、右侧 dockkit 面板、对话框/菜单/浮层、卡片**；中间对话区**不**磨砂（用户明确要求）。
+    注意：`backdrop-filter` 只能模糊「元素背后真正画出来的东西」，所以侧栏/弹层的底色必须调薄才有可见磨砂。
 
 ## 已知限制 / 不用再试的方向
 
@@ -82,7 +85,8 @@ scripts/dev-instance.ps1   起隔离测试 profile + Web 实例（不碰 desktop
 - 文件类型图标颜色是 DSH 语义色，不属于「交互强调色」，不要试图统一改色。
 - 右侧文件栏依赖 `[data-dockkit-host]`；DSH 换掉 dockkit 时只有那一层玻璃失效。
 - 图片壁纸目前是「铺满 + 可拖动/缩放」，没有「完整显示(contain)」模式——可作下一步选项。
-- 磨砂玻璃只在**列/右栏面板**上做，弹层仍是 DSH 原生材质（token 层加不了 backdrop-filter）。
+- 磨砂玻璃只在**侧栏/浮层/卡片**上做；中间对话区不磨（用户明确要求）。DSH 菜单材质在元素内部定义，
+  token 改不了，但可以用 `[role=menu]`/`_dialog_` 等语义选择器加 `backdrop-filter`。
   大面板 backdrop-filter 有 GPU 成本，低端机器把 `frostBlur` 调小或设 0。
 - 用户已明确 **不要 Bonjourr 式自定义排版/小部件**（2026-11-20 决定废除），不要主动加。
 
@@ -116,7 +120,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev-instance.ps1 -St
 1. 改 `package.json` 版本 + 本文件「版本历史」+ README「更新记录」。
 2. `git add -A && git commit`（公开仓库前先做隐私检查：提交内容里不能有本机绝对路径、用户名、邮箱、token）。
 3. `git push`（本机直连 GitHub 会超时，需要走代理；详见工作区流程卡）。
-4. 可选：给 repo 打 tag（`git tag v0.3.0 && git push --tags`），或发布到 npm 后用户可直接
+4. 可选：给 repo 打 tag（`git tag v0.3.1 && git push --tags`），或发布到 npm 后用户可直接
    `dsh plugin --profile desktop add dsh-ui-skin`。
 
 ## 设计决策记录
