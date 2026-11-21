@@ -11,7 +11,6 @@
 | 你想要的 | 插件里怎么做 |
 | --- | --- |
 | 换壁纸 | 纯色 / 渐变（色环自选颜色和角度）/ 本地静态图片，可再加暗化遮罩与模糊 |
-| 磨砂玻璃质感 | 「玻璃质感」卡：左右侧边栏整体磨砂，对话框/菜单/卡片也磨砂；中间对话区保持平面半透明。可调磨砂强度、噪点、边缘高光，默认开启 |
 | 改透明度 | 对话界面、工作区文件栏、左侧边栏、底部输入栏、弹层菜单各自一个不透明度 |
 | 改 bottom 和交互色 | 底部输入栏底色单独调；发送键、链接、焦点框、选中描边共用一个「交互强调色」 |
 | 文件栏和对话分开设置 | 两者是独立的两张卡，互不影响 |
@@ -40,13 +39,9 @@ dsh plugin --profile desktop add "link:<本目录绝对路径>"
 > 从 npm / git 安装（`dsh plugin --profile desktop add github:<owner>/<repo>` 或包名）会自动装依赖。
 > 升级本插件后如果新增/删除了设置字段，也要重启 DSH，旧进程里的 Host 配置 schema 不会热更新。
 
-### 方式 B：从 GitHub / npm
+### 方式 B：从 npm（发布后）
 
 ```powershell
-# 直接从这个仓库装
-dsh plugin --profile desktop add github:worsle37/dsh-ui-skin
-
-# 或发布到 npm 后按包名装
 dsh plugin --profile desktop add dsh-ui-skin
 ```
 
@@ -114,15 +109,12 @@ dsh-ui-skin/
 ├─ client.js           # 浏览器半：玻璃皮肤 / 设置页 / 首页补丁（全部逻辑）
 ├─ locale/{zh,en}.json # 插件页显示的标题与说明
 ├─ icon.svg            # 插件图标
-├─ docs/               # 插件详情页图片（preview.svg）+ 开发记录（DEVLOG.md）
-│                        # 改代码前先读 docs/DEVLOG.md：架构、机制、坑、下一步
+├─ docs/               # 插件详情页图片（preview.svg）
 ├─ scripts/dev-instance.ps1  # 起隔离测试实例（不碰 desktop）
 └─ LICENSE
 ```
 
 ## 开发
-
-> 先读 [docs/DEVLOG.md](docs/DEVLOG.md)：当前版本、架构、关键机制、已知限制与下一步。
 
 ```powershell
 # 语法检查（不需要构建）
@@ -140,10 +132,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev-instance.ps1 -St
 
 ## 更新记录
 
-- **0.3.2**：磨砂颜色保真——降低 `saturate` 色偏、侧栏/右栏不再大幅自动调透明，颜色按你设的
-  「底色 + 不透明度」来；右栏颜色就是「工作区文件栏」那张卡。
-- **0.3.1**：磨砂范围修正——只给**左右侧边栏整体**、对话框、菜单、卡片加磨砂（`backdrop-filter`），
-  中间对话区保持原来的平面半透明玻璃；开磨砂时把侧栏/弹层底色调薄一点，壁纸才透得出来、磨砂才看得见。
 - **0.2.1**：图片壁纸支持**拖动调整露出位置** + 缩放（100–250%）+ 一键居中；定位按原图像素尺寸计算，
   宽屏/窄窗口下也能准确对准想保留的部分。
 - **0.2.0**：修 6 个实测问题——轨迹/统计等子页面不透、右侧卡片/底部输入栏/设置弹层不跟壁纸、

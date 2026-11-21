@@ -1,6 +1,6 @@
-﻿{
+{
   "name": "dsh-ui-skin",
-  "version": "0.3.2",
+  "version": "0.2.1",
   "description": "DSH 桌面版轻量外观皮肤：静态壁纸、分区透明度、玻璃弹层、底部输入栏与交互配色、首页标题自定义",
   "keywords": [
     "dsh",
