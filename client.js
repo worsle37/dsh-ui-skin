@@ -51,6 +51,9 @@ window.__ModuleLoader__.load({
       wallpaperImageScale: 100,
       wallpaperDim: 0,
       wallpaperBlur: 0,
+      frostBlur: 16,
+      frostGrain: 3,
+      frostHighlight: true,
       chatColor: '#151517',
       chatOpacity: 72,
       filesColor: '#151517',
@@ -272,6 +275,9 @@ window.__ModuleLoader__.load({
         wallpaperImageScale: Math.round(pickNumber('wallpaperImageScale', 100, 250)),
         wallpaperDim: Math.round(pickNumber('wallpaperDim', 0, 80)),
         wallpaperBlur: Math.round(pickNumber('wallpaperBlur', 0, 40)),
+        frostBlur: Math.round(pickNumber('frostBlur', 0, 40)),
+        frostGrain: Math.round(pickNumber('frostGrain', 0, 10)),
+        frostHighlight: source.frostHighlight !== false,
         chatColor: safeColor(source.chatColor, DEFAULTS.chatColor),
         chatOpacity: Math.round(pickNumber('chatOpacity', 0, 100)),
         filesColor: safeColor(source.filesColor, DEFAULTS.filesColor),
@@ -647,13 +653,64 @@ html::after {
      * 生成整段皮肤 CSS：壁纸层、body/frame 透明、三列各自的玻璃层与作用域 token。
      * light/dark 是 resolveSkin 的两套结果（自定义属性按 body[data-ds-dark-theme] 切换）。
      */
+    /** 噪点瓦片：160px 的 SVG 噪声，透明度 = 强度 / 100。 */
+    function noiseLayer (strength) {
+      const svg = "<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'>"
+        + "<filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/>"
+        + "<feColorMatrix type='saturate' values='0'/></filter>"
+        + "<rect width='160' height='160' filter='url(#n)' opacity='" + strength + "'/></svg>"
+      return 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '")'
+    }
+
+    /**
+     * 磨砂玻璃附加层，全部是 CSS，不改 DOM：
+     *  - `backdrop-filter` 把面板背后的壁纸真正磨模糊（亚克力质感）；
+     *  - 噪点瓦片压住渐变的色带，让玻璃看起来有实体表面；
+     *  - 顶部一道细高光 + 内描边，像一片有厚度的玻璃。
+     * @param {'column'|'panel'} kind - 铺满整列的玻璃 / 悬浮的小面板
+     */
+    function frostCss (cfg, kind) {
+      const blur = Math.round(clamp(cfg.frostBlur, 0, 40))
+      const grain = Math.round(clamp(cfg.frostGrain, 0, 10))
+      const highlight = cfg.frostHighlight !== false
+      const lines = []
+      if (blur > 0) {
+        lines.push(`  backdrop-filter: blur(${blur}px) saturate(135%);`)
+        lines.push(`  -webkit-backdrop-filter: blur(${blur}px) saturate(135%);`)
+      }
+      const images = []
+      const repeats = []
+      const sizes = []
+      if (highlight) {
+        images.push('linear-gradient(180deg, rgba(255,255,255,0.055) 0%, rgba(255,255,255,0.012) 14%, rgba(255,255,255,0) 30%)')
+        repeats.push('no-repeat')
+        sizes.push('100% 100%')
+      }
+      if (grain > 0) {
+        images.push(noiseLayer(grain / 100))
+        repeats.push('repeat')
+        sizes.push('160px 160px')
+      }
+      if (images.length > 0) {
+        lines.push('  background-image: ' + images.join(', '))
+        lines.push('  background-repeat: ' + repeats.join(', '))
+        lines.push('  background-size: ' + sizes.join(', '))
+      }
+      if (highlight) {
+        lines.push(kind === 'panel'
+          ? '  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.07), inset 0 0 0 0.5px rgba(255, 255, 255, 0.06)'
+          : '  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), inset 0 0 0 0.5px rgba(255, 255, 255, 0.045)')
+      }
+      return lines.join('\n')
+    }
+
     function buildCss (cfg, light, dark) {
       const rules = []
       const glass = (state, key) => withAlpha(state[key].color, state[key].alpha)
       // 左列 / 中列：列本身画唯一一层玻璃，内部表面 token 全部透明（见 areaDeclarations）。
       for (const [mark, key] of [['center', 'chat'], ['sidebar', 'sidebar']]) {
-        rules.push(`html [${MARK}='${mark}'] {\n  background-color: ${glass(light, key)};\n${areaDeclarations(light[key].color, light[key].alpha)}\n}`)
-        rules.push(`html body[data-ds-dark-theme] [${MARK}='${mark}'] {\n  background-color: ${glass(dark, key)};\n${areaDeclarations(dark[key].color, dark[key].alpha)}\n}`)
+        rules.push(`html [${MARK}='${mark}'] {\n  background-color: ${glass(light, key)};\n${areaDeclarations(light[key].color, light[key].alpha)}\n${frostCss(cfg, 'column')}\n}`)
+        rules.push(`html body[data-ds-dark-theme] [${MARK}='${mark}'] {\n  background-color: ${glass(dark, key)};\n${areaDeclarations(dark[key].color, dark[key].alpha)}\n${frostCss(cfg, 'column')}\n}`)
       }
       // 右列是 0 宽的轨道（面板挂在上面），画列没用；由 dockkit 容器画一层玻璃。
       for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
@@ -661,6 +718,7 @@ html::after {
         rules.push(`html ${mode}[${MARK}='rightbar'] [data-dockkit-host],
 html ${mode}[${MARK}='rightbar'] [data-dockkit-float] {
   background-color: ${glass(state, 'files')};
+${frostCss(cfg, 'panel')}
 }`)
       }
       // Windows 桌面：DSH 只给内容区左上角 16px 圆角；皮肤铺满壁纸后那个缺口会显脏，统一拍平。
@@ -1599,6 +1657,14 @@ ${wallpaperCss(cfg)}
         enableHint: '关闭后立即恢复 DSH 原生外观，设置本身保留。',
         wallpaper: '壁纸',
         wallpaperHint: '壁纸只支持静态图片或纯色/渐变，不做动画。',
+        frost: '玻璃质感',
+        frostHint: '给面板加一层磨砂：把背后的壁纸真正模糊，再用噪点和顶部高光做出实体玻璃的厚度感。',
+        frostBlur: '磨砂强度',
+        frostBlurHint: '0 = 关闭（普通半透明玻璃）；越大越像亚克力。觉得卡就调小一点。',
+        frostGrain: '噪点纹理',
+        frostGrainHint: '很轻的颗粒，能压住渐变的色带，让玻璃表面不那么“空”。',
+        frostHighlight: '边缘高光',
+        frostHighlightHint: '面板顶部一道细高光 + 一圈内描边，看起来像一片有厚度的玻璃。',
         mode: '壁纸类型',
         modeGradient: '渐变',
         modeSolid: '纯色',
@@ -1660,6 +1726,14 @@ ${wallpaperCss(cfg)}
         enableHint: 'Turning it off restores the stock DSH look; your settings are kept.',
         wallpaper: 'Wallpaper',
         wallpaperHint: 'Static images, solid colors, or gradients only — no animation.',
+        frost: 'Frosted glass',
+        frostHint: 'Frosts the panels: genuinely blurs the wallpaper behind them, then adds grain and a top highlight for depth.',
+        frostBlur: 'Frost strength',
+        frostBlurHint: '0 = off (plain translucent glass); higher looks more like acrylic. Lower it if it feels heavy.',
+        frostGrain: 'Grain',
+        frostGrainHint: 'A very light grain that hides gradient banding and makes the glass feel solid.',
+        frostHighlight: 'Edge highlight',
+        frostHighlightHint: 'A thin top highlight plus an inner hairline, so the panel reads as a piece of glass.',
         mode: 'Wallpaper type',
         modeGradient: 'Gradient',
         modeSolid: 'Solid',
@@ -1858,6 +1932,18 @@ ${wallpaperCss(cfg)}
         h(Card, null,
           h(Row, { label: t('enable'), hint: t('enableHint') },
             h(Switch, { checked: config.enabled, onChange: (value) => update({ enabled: value }), label: t('enable') }),
+          ),
+        ),
+
+        h(Card, { title: t('frost'), hint: t('frostHint') },
+          h(Row, { label: t('frostBlur'), hint: t('frostBlurHint') },
+            h(Slider, { value: config.frostBlur, min: 0, max: 40, onChange: (value) => update({ frostBlur: value }), suffix: 'px' }),
+          ),
+          h(Row, { label: t('frostGrain'), hint: t('frostGrainHint') },
+            h(Slider, { value: config.frostGrain, min: 0, max: 10, onChange: (value) => update({ frostGrain: value }), suffix: '%' }),
+          ),
+          h(Row, { label: t('frostHighlight'), hint: t('frostHighlightHint') },
+            h(Switch, { checked: config.frostHighlight, onChange: (value) => update({ frostHighlight: value }), label: t('frostHighlight') }),
           ),
         ),
 

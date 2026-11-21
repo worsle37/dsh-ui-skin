@@ -41,6 +41,13 @@ export const Config = z.object({
   /** 壁纸模糊半径（0-40 px）。 */
   wallpaperBlur: z.number().step(1).min(0).max(40).default(0).volatile(),
 
+  /** 面板磨砂玻璃的模糊半径（0-40 px）；0 = 关闭磨砂，回到普通半透明玻璃。 */
+  frostBlur: z.number().step(1).min(0).max(40).default(16).volatile(),
+  /** 磨砂玻璃的噪点纹理强度（0-10），能压住渐变色带、增加实体感。 */
+  frostGrain: z.number().step(1).min(0).max(10).default(3).volatile(),
+  /** 磨砂玻璃的顶部高光 + 边缘分隔线。 */
+  frostHighlight: z.boolean().default(true).volatile(),
+
   /** 对话界面底色。 */
   chatColor: z.string().default('#151517').volatile(),
   /** 对话界面不透明度（0-100），100 = 完全遮住壁纸。 */
