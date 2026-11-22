@@ -788,6 +788,8 @@ html ${mode}[class*='_pageHead'] {
   background-color: ${withAlpha(state.overlay.color, clamp(state.overlay.alpha, 0.6, 0.99))};${frost}
 }`)
       }
+      // 选中文字的「引用文本」工具条是胶囊形，单独给圆角。
+      rules.push(`html [class*='_textInteraction'] { border-radius: 999px !important; }`)
       // body 下的浮层容器（指令面板/引用卡/Toast）：把内部的「层」token 换成弹层玻璃，      // 这样它们自带的背景不再透明，底下文字不会穿出来。
       for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
         const fill = withAlpha(state.overlay.color, clamp(state.overlay.alpha, 0.45, 0.98))
@@ -1174,13 +1176,13 @@ ${wallpaperCss(cfg)}
         }
         // 再扫一遍「浮动小面板」：选中文字工具条、菜单、预览卡等。
         // 这些元素常常没有自己的背景，透明后底下文字会穿上来。
-        const surfaceSelector = "[role='menu'], [role='toolbar'], [role='listbox'], [role='tooltip'], [data-trigger-menu], [class*='_toolbar'], [class*='_selection'], [class*='_popover'], [class*='_menu_'], [class$='_menu']"
+        const surfaceSelector = "[role='menu'], [role='toolbar'], [role='listbox'], [role='tooltip'], [data-trigger-menu], [class*='_toolbar'], [class*='_selection'], [class*='_popover'], [class*='_menu_'], [class*='_textInteraction'], [class$='_menu']"
         for (const el of document.querySelectorAll(surfaceSelector)) {
           if (!(el instanceof HTMLElement) || el.hasAttribute(GLASS_SURFACE)) continue
           const style = getComputedStyle(el)
           if (style.position !== 'fixed' && style.position !== 'absolute') continue
           const rect = el.getBoundingClientRect()
-          if (rect.width < 80 || rect.height < 20 || rect.width > window.innerWidth * 0.95) continue
+          if (rect.width < 40 || rect.height < 16 || rect.width > window.innerWidth * 0.95) continue
           el.setAttribute(GLASS_SURFACE, '')
         }
       }
