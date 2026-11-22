@@ -850,7 +850,23 @@ html ${mode}[class*='_quotePreview'] {
   --dsw-specific-selector: ${fill};
 }`)
       }
-      // 底部输入栏是唯一保留实时磨砂的表面（默认不透明度可能为 0）。
+      // 第三方面板（如 ego-browser 的「Agent 浏览器」）自带一套硬编码的 --ego-* 配色，
+      // 这里按皮肤的颜色覆盖，让它的工具栏/标签/按钮跟整体玻璃一致。
+      const panelAccent = safeColor(cfg.accentColor, DEFAULTS.accentColor)
+      const panel = (state) => [
+        `  --ego-surface: transparent;`,
+        `  --ego-toolbar: ${withAlpha(state.overlay.color, clamp(state.overlay.alpha, 0.55, 0.95))};`,
+        `  --ego-tab-active: ${withAlpha(state.overlay.color, clamp(state.overlay.alpha, 0.6, 0.98))};`,
+        `  --ego-text: ${state.text};`,
+        `  --ego-text-2: ${withAlpha(state.text, 0.72)};`,
+        `  --ego-accent: ${panelAccent};`,
+        `  --ego-on-accent: #0f1115;`,
+        `  --ego-hover: ${withAlpha(state.text, 0.1)};`,
+        `  --ego-border: ${withAlpha(state.text, 0.16)};`,
+      ].join('\n')
+      rules.push(`html body .dsh-ego-side-root {\n${panel(light)}\n}`)
+      rules.push(`html body[data-ds-dark-theme] .dsh-ego-side-root {\n${panel(dark)}\n}`)
+      // 对话框 / 底部输入框：
       rules.push(`html [data-slot='conversation.composer'] [class$='_card'] {${composerFrost}\n}`)
       rules.push(`html [data-slot='conversation.composer'] [class*='_quote'],
 html [data-slot='conversation.composer'] [class*='_chip'],
