@@ -518,6 +518,41 @@ const GLASS_SURFACE = 'data-dshui-surface'
       })
     }
 
+    /**
+     * 生成一张「预先模糊 + 暗化」的壁纸小图（约 420px 宽）。
+     * 玻璃面板直接拿它当背景（fixed 对齐视口），就不用实时 backdrop-filter 了。
+     */
+    function bakeFrostImage (dataUrl, dimPercent) {
+      return new Promise((resolve, reject) => {
+        const image = new Image()
+        image.onload = () => {
+          try {
+            const width = 420
+            const height = Math.max(1, Math.round(width * (image.naturalHeight / image.naturalWidth)))
+            const canvas = document.createElement('canvas')
+            canvas.width = width
+            canvas.height = height
+            const context = canvas.getContext('2d')
+            if (!context) throw new Error('no 2d context')
+            const blur = Math.max(6, Math.round(width * 0.03))
+            if ('filter' in context) context.filter = `blur(${blur}px)`
+            context.drawImage(image, 0, 0, width, height)
+            if ('filter' in context) context.filter = 'none'
+            const dim = Math.max(0, Math.min(80, Number(dimPercent) || 0)) / 100
+            if (dim > 0) {
+              context.fillStyle = `rgba(0, 0, 0, ${dim})`
+              context.fillRect(0, 0, width, height)
+            }
+            resolve(canvas.toDataURL('image/jpeg', 0.62))
+          } catch (error) {
+            reject(error)
+          }
+        }
+        image.onerror = () => reject(new Error('frost image decode failed'))
+        image.src = dataUrl
+      })
+    }
+
     function wallpaperCss (cfg) {
       const none = cfg.wallpaperMode === 'none'
         ? "html[data-dshui-skin-wallpaper='none']::before,\nhtml[data-dshui-skin-wallpaper='none']::after { content: none; }\n"
@@ -722,33 +757,31 @@ html::after {
         rules.push(`html [${MARK}='${mark}'] {\n  background-color: ${glass(light, key)};\n${areaDeclarations(light[key].color, light[key].alpha, light.overlay, layers)}\n}`)
         rules.push(`html body[data-ds-dark-theme] [${MARK}='${mark}'] {\n  background-color: ${glass(dark, key)};\n${areaDeclarations(dark[key].color, dark[key].alpha, dark.overlay, layers)}\n}`)
       }
-      // 页面视图（插件页/统计页等，页头带 _pageBar）把中列背后也磨砂；
-      // 对话视图没有 _pageBar，保持清晰（用户要求对话背景不要整窗磨砂）。
-      if (frost) {
-        rules.push(`html [${MARK}='center'] {
-  position: relative;
-  isolation: isolate;
+      // 页面视图（插件页/统计页等，页头带 _pageBar）不再实时模糊中列：
+      // 中列背景直接换成预模糊壁纸（见下方 :has(_pageBar) 规则），省掉一整层 backdrop-filter。
+      // 左栏用「预先模糊好的壁纸」当背景（不再实时 backdrop-filter，省 GPU）：
+      // 背景图与壁纸同尺寸/同位置（fixed 对齐视口），视觉上就是一块磨砂玻璃。
+      for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
+        const tint = withAlpha(state.sidebar.color, state.sidebar.alpha)
+        rules.push(`html ${mode}[${MARK}='sidebar'] {
+  background-image: linear-gradient(${tint}, ${tint}), var(--dshui-frost-image, none);
+  background-size: 100% 100%, var(--dshui-frost-size, cover);
+  background-position: 0 0, var(--dshui-frost-position, center);
+  background-repeat: no-repeat, no-repeat;
+  background-attachment: scroll, fixed;
 }`)
-        rules.push(`html [${MARK}='center']::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-}`)
-        rules.push(`html [${MARK}='center']:has([class*='_pageBar'])::before {${chatFrost}\n}`)
-      }
-      // 磨砂图层的公共写法：独立 ::before，避免改掉容器的 fixed 包含块。
-      if (frost) {
-        rules.push(`html [${MARK}='sidebar'] {\n  position: relative;\n  isolation: isolate;\n}`)
-        rules.push(`html [${MARK}='sidebar']::before {\n  content: '';\n  position: absolute;\n  inset: 0;\n  z-index: -1;\n  pointer-events: none;${sidebarFrost}\n}`)
       }
       // 右列是 0 宽的轨道（面板挂在上面），画列没用；由 dockkit 容器画一层玻璃。
       for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
         rules.push(`html ${mode}[${MARK}='rightbar'] {\n${areaDeclarations(state.files.color, state.files.alpha, state.overlay)}\n}`)
+        const tint = withAlpha(state.files.color, state.files.alpha)
         rules.push(`html ${mode}[${MARK}='rightbar'] [data-dockkit-host],
 html ${mode}[${MARK}='rightbar'] [data-dockkit-float] {
-  background-color: ${glass(state, 'files')};
+  background-image: linear-gradient(${tint}, ${tint}), var(--dshui-frost-image, none);
+  background-size: 100% 100%, var(--dshui-frost-size, cover);
+  background-position: 0 0, var(--dshui-frost-position, center);
+  background-repeat: no-repeat, no-repeat;
+  background-attachment: scroll, fixed;
 }`)
       }
       // 窗口最上面的「应用/编辑」标题条（Windows 的 titlebar 区域）：也要磨砂。
@@ -760,14 +793,16 @@ html [${MARK}='frame']::before {${sidebarFrost}
 }`)
       }
       // 页面视图（插件页/统计页等，页头带 _pageBar）：
-      // 整块页面直接用「弹层与菜单」的底色 + 不透明度（和对话框同款），再叠加磨砂；
-      // 这样页头、页体是同一块玻璃，不会出现"标题一条实心色带、下面透壁纸"的割裂。
-      if (frost) {
-        for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
-          rules.push(`html ${mode}[${MARK}='center']:has([class*='_pageBar']) {
-  background-color: ${withAlpha(state.overlay.color, state.overlay.alpha)};
+      // 整块页面用「弹层与菜单」的底色 + 预先模糊的壁纸，和对话框同款、但不再实时模糊。
+      for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
+        const tint = withAlpha(state.overlay.color, state.overlay.alpha)
+        rules.push(`html ${mode}[${MARK}='center']:has([class*='_pageBar']) {
+  background-image: linear-gradient(${tint}, ${tint}), var(--dshui-frost-image, none);
+  background-size: 100% 100%, var(--dshui-frost-size, cover);
+  background-position: 0 0, var(--dshui-frost-position, center);
+  background-repeat: no-repeat, no-repeat;
+  background-attachment: scroll, fixed;
 }`)
-        }
       }
       // 页面内的粘性标题条（插件页/设置页等）默认透明，滚动内容会穿上来重影。
       // 颜色/不透明度跟「弹层与菜单」一致，叠在页面玻璃上只多一点点，不会割裂。
@@ -1101,6 +1136,8 @@ ${wallpaperCss(cfg)}
         this.cssSignature = null
         this.lastGlassScan = 0
         this.glassScanPending = false
+        this.frostImage = null
+        this.frostKey = ''
         this.wallpaperInfo = null
         this.wallpaperSampleKey = ''
         this.hero = new HeroSync(() => this.store.get())
@@ -1347,6 +1384,34 @@ ${wallpaperCss(cfg)}
         for (const key of ['sidebarFrost', 'filesFrost', 'chatFrost', 'composerFrost', 'overlayFrost']) {
           root.style.setProperty(`--dshui-frost-${key}`, `${Math.round(clamp(config[key], 0, 40))}px`)
         }
+        // 预模糊壁纸（玻璃面板的背景）：与壁纸同尺寸/同位置，fixed 对齐视口。
+        root.style.setProperty('--dshui-frost-size', values.size)
+        root.style.setProperty('--dshui-frost-position', values.position)
+        root.style.setProperty(
+          '--dshui-frost-image',
+          config.wallpaperMode === 'image' && this.frostImage ? `url("${this.frostImage}")` : 'none',
+        )
+        this.updateFrostImage(config)
+      }
+
+      /** 壁纸图片变化时重烤一张预模糊小图（异步，完成后重跑 applyWallpaper）。 */
+      updateFrostImage (config) {
+        const dataUrl = config.wallpaperMode === 'image' ? config.wallpaperImage : ''
+        if (!dataUrl) {
+          this.frostImage = null
+          this.frostKey = ''
+          return
+        }
+        const key = `${dataUrl.length}:${config.wallpaperDim}`
+        if (key === this.frostKey) return
+        this.frostKey = key
+        this.frostImage = null
+        bakeFrostImage(dataUrl, config.wallpaperDim).then((url) => {
+          if (this.disposed || this.frostKey !== key) return
+          this.frostImage = url
+          const current = this.store.get()
+          if (current.enabled) this.applyWallpaper(current)
+        }).catch(() => { /* 烘焙失败就退回纯色玻璃 */ })
       }
 
       clearWallpaper () {
@@ -1355,6 +1420,9 @@ ${wallpaperCss(cfg)}
         for (const name of Object.values(WALLPAPER_VARS)) root.style.removeProperty(name)
         this.wallpaperInfo = null
         this.wallpaperSampleKey = ''
+        for (const name of ['--dshui-frost-size', '--dshui-frost-position', '--dshui-frost-image']) root.style.removeProperty(name)
+        this.frostImage = null
+        this.frostKey = ''
       }
 
       applyTokens (config, light, dark) {
