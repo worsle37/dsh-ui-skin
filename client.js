@@ -788,14 +788,18 @@ html ${mode}[class*='_pageHead'] {
         }
       }
       // 浮动小面板（选中文字工具条/上下文菜单/预览卡）：统一补玻璃底 + 磨砂。
+      // 这里对已知组件用「静态 CSS」直接覆盖，避免等 JS 异步打标记时的透明闪现；
+      // 圆角交给组件自己的样式，不强行覆盖。
       for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
-        rules.push(`html ${mode}[${GLASS_SURFACE}] {
-  border-radius: 12px;
-  background-color: ${withAlpha(state.overlay.color, clamp(state.overlay.alpha, 0.6, 0.99))};${frost}
+        const fill = withAlpha(state.overlay.color, clamp(state.overlay.alpha, 0.6, 0.99))
+        rules.push(`html ${mode}[${GLASS_SURFACE}],
+html ${mode}[class*='_textInteraction'],
+html ${mode}[class*='_selectionPreview'],
+html ${mode}[class*='_selectionCard'],
+html ${mode}[class*='_quotePreview'] {
+  background-color: ${fill};${frost}
 }`)
       }
-      // 选中文字的「引用文本」工具条是胶囊形，单独给圆角。
-      rules.push(`html [class*='_textInteraction'] { border-radius: 999px !important; }`)
       // body 下的浮层容器（指令面板/引用卡/Toast）：把内部的「层」token 换成弹层玻璃，      // 这样它们自带的背景不再透明，底下文字不会穿出来。
       for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
         const fill = withAlpha(state.overlay.color, clamp(state.overlay.alpha, 0.45, 0.98))
@@ -1094,6 +1098,7 @@ ${wallpaperCss(cfg)}
         this.brandInject = null
         this.brandIcon = null
         this.tokenSignature = null
+        this.cssSignature = null
         this.lastGlassScan = 0
         this.glassScanPending = false
         this.wallpaperInfo = null
@@ -1187,8 +1192,6 @@ ${wallpaperCss(cfg)}
         const surfaceSelector = "[role='menu'], [role='toolbar'], [role='listbox'], [role='tooltip'], [data-trigger-menu], [class*='_toolbar'], [class*='_selection'], [class*='_popover'], [class*='_menu_'], [class*='_textInteraction'], [class*='_jump'], [class*='_scrollButton'], [class*='_scrollTo'], [class*='_toBottom'], [class*='_backTo'], [class$='_menu']"
         for (const el of document.querySelectorAll(surfaceSelector)) {
           if (!(el instanceof HTMLElement) || el.hasAttribute(GLASS_SURFACE)) continue
-          const style = getComputedStyle(el)
-          if (style.position !== 'fixed' && style.position !== 'absolute') continue
           const rect = el.getBoundingClientRect()
           if (rect.width < 20 || rect.height < 16 || rect.width > window.innerWidth * 0.95) continue
           // 语义上的菜单/工具条允许大尺寸；其余按类名命中的只收小按钮，
@@ -1214,7 +1217,6 @@ ${wallpaperCss(cfg)}
         apply(sidebar, 'sidebar')
         apply(center, 'center')
         apply(rightbar, 'rightbar')
-        this.markGlassRoots()
         if (!this.observer) {
           this.observer = new MutationObserver(() => this.scheduleMark())
           this.observer.observe(document.body, { childList: true, subtree: true })
@@ -1262,7 +1264,16 @@ ${wallpaperCss(cfg)}
           const wallRgb = this.wallpaperBaseRgb(config)
           const light = resolveSkin(config, 'light', wallRgb)
           const dark = resolveSkin(config, 'dark', wallRgb)
-          this.ensureStyle().textContent = buildCss(config, light, dark)
+          // 拖动滑块时配置会连续变化：样式内容没变就别重写 <style>，省掉浏览器重新解析 CSS 的开销。
+          const cssKey = JSON.stringify({
+            config: { ...config, wallpaperImage: config.wallpaperImage ? config.wallpaperImage.length : 0 },
+            light,
+            dark,
+          })
+          if (cssKey !== this.cssSignature) {
+            this.cssSignature = cssKey
+            this.ensureStyle().textContent = buildCss(config, light, dark)
+          }
           this.applyWallpaper(config)
           this.markColumns()
           this.applyTokens(config, light, dark)
@@ -1391,6 +1402,7 @@ ${wallpaperCss(cfg)}
 
       teardown () {
         this.clearWallpaper()
+        this.cssSignature = null
         // 皮肤关掉后不再盯着 DOM（省 CPU）；重新启用时 markColumns 会重建观察器。
         if (this.observer) {
           this.observer.disconnect()
