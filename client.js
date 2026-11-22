@@ -35,6 +35,7 @@ window.__ModuleLoader__.load({
     const PAGE_STYLE_ID = 'dsh-ui-skin-page-style'
     /** 作用域标记属性。 */
     const MARK = 'data-dsh-ui-skin'
+const GLASS_ROOT = 'data-dshui-glass'
     /** 设置服务缺席时的退化存储 key。 */
     const LOCAL_KEY = 'dsh.ui-skin.config.v1'
 
@@ -557,23 +558,31 @@ html::after {
      * 关键教训：DSH 里同一个 token（尤其 bg-layer-1）会被页面、表格、单元格逐层重绘，
      * 如果每层都给同一个 alpha，叠三四层就几乎全实（轨迹页实测 4 层 → 0.9938）。
      * 因此：
-     *  - 该区域的「底色」由列本身画唯一一层（options.paintColumn），列内 bg-base / layer-1..3
-     *    一律透明，页面再嵌套也不会叠加；
-     *  - 卡片、代码块、气泡这些「不是铺满的」表面给一个较低的同色 alpha（subtle），
-     *    让它们相对背景有层次，又不会把壁纸盖死。
+     *  - 该区域的「底色」由列本身画唯一一层，列内 bg-base / layer-1..3 一律透明；
+     *  - 但 bg-overlay / bg-module-platform 要留给「页面内的浮层、粘性标题条」用——
+     *    不能透明，否则底下的滚动内容会直接穿上来（插件页标题重影、引用浮层透字）。
+     *    这两档按弹层色/弹层不透明度给。
+     *  - 卡片、代码块、气泡这些「不是铺满的」表面给一个较低的同色 alpha（subtle）。
      */
-    function areaDeclarations (color, alpha, options) {
+    function areaDeclarations (color, alpha, overlay) {
       const dark = luminance(color) < 0.5
       const subtle = Math.min(0.5, Math.round(alpha * 0.45 * 1000) / 1000)
       const entries = [
         ['--dsw-alias-bg-base', 'transparent'],
         ['--dsw-specific-sidebar-fill', 'transparent'],
-        ['--dsw-alias-bg-module-platform', 'transparent'],
         ['--dsw-alias-bg-layer-1', 'transparent'],
         ['--dsw-alias-bg-layer-2', 'transparent'],
         ['--dsw-alias-bg-layer-3', 'transparent'],
-        ['--dsw-alias-bg-overlay', 'transparent'],
       ]
+      if (overlay) {
+        const overlayFill = withAlpha(overlay.color, overlay.alpha)
+        entries.push(['--dsw-alias-bg-overlay', overlayFill])
+        entries.push(['--dsw-alias-bg-module-platform', overlayFill])
+        entries.push(['--dsw-specific-menu', overlayFill])
+      } else {
+        entries.push(['--dsw-alias-bg-overlay', 'transparent'])
+        entries.push(['--dsw-alias-bg-module-platform', 'transparent'])
+      }
       const subtleTokens = [
         ['--dsw-alias-card-fill', 0.06],
         ['--dsw-alias-card-fill-hover', 0.12],
@@ -675,10 +684,10 @@ html::after {
       const rules = []
       const glass = (state, key) => withAlpha(state[key].color, state[key].alpha)
       const frost = frostDeclarations(cfg)
-      // 左列 / 中列：列本身画唯一一层玻璃，内部表面 token 全部透明（见 areaDeclarations）。
+      // 左列 / 中列：列本身画唯一一层玻璃，内部表面 token 见 areaDeclarations。
       for (const [mark, key] of [['center', 'chat'], ['sidebar', 'sidebar']]) {
-        rules.push(`html [${MARK}='${mark}'] {\n  background-color: ${glass(light, key)};\n${areaDeclarations(light[key].color, light[key].alpha)}\n}`)
-        rules.push(`html body[data-ds-dark-theme] [${MARK}='${mark}'] {\n  background-color: ${glass(dark, key)};\n${areaDeclarations(dark[key].color, dark[key].alpha)}\n}`)
+        rules.push(`html [${MARK}='${mark}'] {\n  background-color: ${glass(light, key)};\n${areaDeclarations(light[key].color, light[key].alpha, light.overlay)}\n}`)
+        rules.push(`html body[data-ds-dark-theme] [${MARK}='${mark}'] {\n  background-color: ${glass(dark, key)};\n${areaDeclarations(dark[key].color, dark[key].alpha, dark.overlay)}\n}`)
       }
       // 磨砂图层的公共写法：独立 ::before，避免改掉容器的 fixed 包含块。
       if (frost) {
@@ -687,10 +696,31 @@ html::after {
       }
       // 右列是 0 宽的轨道（面板挂在上面），画列没用；由 dockkit 容器画一层玻璃。
       for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
-        rules.push(`html ${mode}[${MARK}='rightbar'] {\n${areaDeclarations(state.files.color, state.files.alpha)}\n}`)
+        rules.push(`html ${mode}[${MARK}='rightbar'] {\n${areaDeclarations(state.files.color, state.files.alpha, state.overlay)}\n}`)
         rules.push(`html ${mode}[${MARK}='rightbar'] [data-dockkit-host],
 html ${mode}[${MARK}='rightbar'] [data-dockkit-float] {
   background-color: ${glass(state, 'files')};
+}`)
+      }
+      // 页面内的粘性标题条（插件页/设置页等）默认透明，滚动内容会穿上来重影。
+      // 给它一层弹层玻璃 + 磨砂，颜色/不透明度跟着「弹层与菜单」走。
+      for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
+        rules.push(`html ${mode}[class*='_pageBar'],
+html ${mode}[class*='_pageHead'] {
+  background-color: ${withAlpha(state.overlay.color, clamp(state.overlay.alpha, 0.35, 0.95))};${frost}
+}`)
+      }
+      // body 下的浮层容器（指令面板/引用卡/Toast）：把内部的「层」token 换成弹层玻璃，
+      // 这样它们自带的背景不再透明，底下文字不会穿出来。
+      for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
+        const fill = withAlpha(state.overlay.color, clamp(state.overlay.alpha, 0.45, 0.98))
+        rules.push(`html ${mode}[${GLASS_ROOT}] {
+  --dsw-alias-bg-layer-1: ${fill};
+  --dsw-alias-bg-layer-2: ${fill};
+  --dsw-alias-bg-layer-3: ${fill};
+  --dsw-alias-bg-overlay: ${fill};
+  --dsw-specific-menu: ${fill};
+  --dsw-specific-selector: ${fill};
 }`)
       }
       if (frost) {
@@ -723,6 +753,18 @@ html [${MARK}='rightbar'] [data-dockkit-float]::before {
   pointer-events: none;${frost}
 }`)
         rules.push(`html [data-slot='conversation.composer'] [class$='_card'] {${frost}\n}`)
+        // 输入区里的引用/附件小卡片：给它们自己的玻璃底，别让对话文字从底下穿出来。
+        rules.push(`html [data-slot='conversation.composer'] [class*='_quote'],
+html [data-slot='conversation.composer'] [class*='_chip'],
+html [data-slot='conversation.composer'] [class*='_refChip'] {
+  border-radius: 12px;
+  background-color: ${withAlpha(light.overlay.color, clamp(light.overlay.alpha, 0.4, 0.95))};${frost}
+}`)
+        rules.push(`html body[data-ds-dark-theme] [data-slot='conversation.composer'] [class*='_quote'],
+html body[data-ds-dark-theme] [data-slot='conversation.composer'] [class*='_chip'],
+html body[data-ds-dark-theme] [data-slot='conversation.composer'] [class*='_refChip'] {
+  background-color: ${withAlpha(dark.overlay.color, clamp(dark.overlay.alpha, 0.4, 0.95))};
+}`)
         rules.push(`html [data-composer-dock] {
   border-radius: 12px;
   background-color: ${glass(light, 'composer')};${frost}
@@ -791,6 +833,11 @@ ${wallpaperCss(cfg)}
       tokens['--dsw-alias-link'] = { light: accent, dark: accent }
       tokens['--dsw-focus-ring-color'] = { light: accent, dark: accent }
       tokens['--dsw-alias-border-selected'] = { light: accent, dark: accent }
+      // 设置页左侧导航的选中底色也用强调色（用户要求「设置左选项选中也应用强调色」）。
+      tokens['--dsw-specific-sidebar-nav-item-active'] = {
+        light: withAlpha(accent, 0.2),
+        dark: withAlpha(accent, 0.26),
+      }
       // 自定义文字颜色（空 = 跟随主题）
       if (light.customText) {
         tokens['--dsw-alias-label-primary'] = { light: light.text, dark: dark.text }
@@ -1034,6 +1081,22 @@ ${wallpaperCss(cfg)}
         return element
       }
 
+      /**
+       * 给 portal 到 body 的浮层容器（指令面板、引用卡片、Toast 等）打标记，
+       * 让它们内部一律使用同一套「弹层玻璃」token，避免背景透明、底下文字穿上来。
+       * 只处理不包含主布局列的 body 直接子节点，不改元素自身样式。
+       */
+      markGlassRoots () {
+        if (!document.body) return
+        for (const child of document.body.children) {
+          if (!(child instanceof HTMLElement)) continue
+          if (child.id === STYLE_ID || child.id === PAGE_STYLE_ID) continue
+          if (child.tagName === 'SCRIPT' || child.tagName === 'STYLE' || child.tagName === 'LINK') continue
+          if (child.querySelector(`[${MARK}]`)) continue
+          if (!child.hasAttribute(GLASS_ROOT)) child.setAttribute(GLASS_ROOT, '')
+        }
+      }
+
       markColumns () {
         const rightbar = document.querySelector('[data-rightbar-col]')
         if (!rightbar) return
@@ -1049,6 +1112,7 @@ ${wallpaperCss(cfg)}
         apply(sidebar, 'sidebar')
         apply(center, 'center')
         apply(rightbar, 'rightbar')
+        this.markGlassRoots()
         if (!this.observer) {
           this.observer = new MutationObserver(() => this.scheduleMark())
           this.observer.observe(document.body, { childList: true, subtree: true })
@@ -1059,6 +1123,8 @@ ${wallpaperCss(cfg)}
         if (this.markFrame !== 0 || this.disposed) return
         this.markFrame = requestAnimationFrame(() => {
           this.markFrame = 0
+          // 新弹出的浮层（指令面板/引用卡/对话框）也要打上弹层玻璃标记。
+          this.markGlassRoots()
           const { frame, sidebar, center, rightbar } = this.marks
           if (frame && sidebar && center && rightbar
             && frame.isConnected && sidebar.isConnected && center.isConnected && rightbar.isConnected) return
@@ -1221,6 +1287,7 @@ ${wallpaperCss(cfg)}
           if (element) element.removeAttribute(MARK)
           this.marks[key] = null
         }
+        for (const element of document.querySelectorAll(`[${GLASS_ROOT}]`)) element.removeAttribute(GLASS_ROOT)
         if (this.brandInject) {
           this.brandInject()
           this.brandInject = null
