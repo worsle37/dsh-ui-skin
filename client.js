@@ -54,16 +54,21 @@ const GLASS_ROOT = 'data-dshui-glass'
       wallpaperBlur: 0,
       chatColor: '#151517',
       chatOpacity: 72,
+      chatFrost: 10,
       filesColor: '#151517',
       filesOpacity: 78,
+      filesFrost: 10,
       filesFollowSidebar: true,
       sidebarColor: '#1b1b1c',
       sidebarOpacity: 86,
+      sidebarFrost: 10,
       composerColor: '#2c2c2e',
       composerOpacity: 88,
+      composerFrost: 10,
       accentColor: '#4176e6',
       overlayOpacity: 88,
       frostBlur: 10,
+      overlayFrost: 10,
       fontColor: '',
       autoContrast: true,
       heroTitle: '',
@@ -277,16 +282,21 @@ const GLASS_ROOT = 'data-dshui-glass'
         wallpaperBlur: Math.round(pickNumber('wallpaperBlur', 0, 40)),
         chatColor: safeColor(source.chatColor, DEFAULTS.chatColor),
         chatOpacity: Math.round(pickNumber('chatOpacity', 0, 100)),
+        chatFrost: Math.round(pickNumber('chatFrost', 0, 40)),
         filesColor: safeColor(source.filesColor, DEFAULTS.filesColor),
         filesOpacity: Math.round(pickNumber('filesOpacity', 0, 100)),
+        filesFrost: Math.round(pickNumber('filesFrost', 0, 40)),
         filesFollowSidebar: source.filesFollowSidebar !== false,
         sidebarColor: safeColor(source.sidebarColor, DEFAULTS.sidebarColor),
         sidebarOpacity: Math.round(pickNumber('sidebarOpacity', 0, 100)),
+        sidebarFrost: Math.round(pickNumber('sidebarFrost', 0, 40)),
         composerColor: safeColor(source.composerColor, DEFAULTS.composerColor),
         composerOpacity: Math.round(pickNumber('composerOpacity', 0, 100)),
+        composerFrost: Math.round(pickNumber('composerFrost', 0, 40)),
         accentColor: safeColor(source.accentColor, DEFAULTS.accentColor),
         overlayOpacity: Math.round(pickNumber('overlayOpacity', 0, 100)),
         frostBlur: Math.round(pickNumber('frostBlur', 0, 40)),
+        overlayFrost: Math.round(pickNumber('overlayFrost', 0, 40)),
         fontColor: typeof source.fontColor === 'string' && isColor(source.fontColor) ? source.fontColor : '',
         autoContrast: source.autoContrast !== false,
         heroTitle: typeof source.heroTitle === 'string' ? source.heroTitle.slice(0, 120) : '',
@@ -682,16 +692,23 @@ html::after {
      * 侧栏/右栏不能把 backdrop-filter 直接加在容器上：它会成为 position:fixed 后代的包含块，
      * 把 DSH 里浮动的「收起侧边栏」按钮之类的定位搞飘。改用 ::before 独立图层来模糊。
      */
-    function frostDeclarations (cfg) {
-      const blur = Math.round(clamp(cfg.frostBlur, 0, 40))
-      if (blur <= 0) return ''
-      return `\n  backdrop-filter: blur(${blur}px);\n  -webkit-backdrop-filter: blur(${blur}px);`
+    /**
+     * 磨砂声明：用 CSS 变量，让每个部位可以单独调强度。
+     * 变量由控制器写到 html 上（--dshui-frost-<area>）；0px 等于关闭。
+     */
+    function frostDeclarations (cfg, key) {
+      const name = `--dshui-frost-${key || 'overlayFrost'}`
+      return `\n  backdrop-filter: blur(var(${name}, 0px));\n  -webkit-backdrop-filter: blur(var(${name}, 0px));`
     }
 
     function buildCss (cfg, light, dark) {
       const rules = []
       const glass = (state, key) => withAlpha(state[key].color, state[key].alpha)
-      const frost = frostDeclarations(cfg)
+      const frost = frostDeclarations(cfg, 'overlayFrost')
+      const sidebarFrost = frostDeclarations(cfg, 'sidebarFrost')
+      const filesFrost = frostDeclarations(cfg, 'filesFrost')
+      const chatFrost = frostDeclarations(cfg, 'chatFrost')
+      const composerFrost = frostDeclarations(cfg, 'composerFrost')
       // 左列 / 中列：列本身画唯一一层玻璃，内部表面 token 见 areaDeclarations。
       for (const [mark, key] of [['center', 'chat'], ['sidebar', 'sidebar']]) {
         const layers = mark === 'center'
@@ -712,12 +729,12 @@ html::after {
   z-index: -1;
   pointer-events: none;
 }`)
-        rules.push(`html [${MARK}='center']:has([class*='_pageBar'])::before {${frost}\n}`)
+        rules.push(`html [${MARK}='center']:has([class*='_pageBar'])::before {${chatFrost}\n}`)
       }
       // 磨砂图层的公共写法：独立 ::before，避免改掉容器的 fixed 包含块。
       if (frost) {
         rules.push(`html [${MARK}='sidebar'] {\n  position: relative;\n  isolation: isolate;\n}`)
-        rules.push(`html [${MARK}='sidebar']::before {\n  content: '';\n  position: absolute;\n  inset: 0;\n  z-index: -1;\n  pointer-events: none;${frost}\n}`)
+        rules.push(`html [${MARK}='sidebar']::before {\n  content: '';\n  position: absolute;\n  inset: 0;\n  z-index: -1;\n  pointer-events: none;${sidebarFrost}\n}`)
       }
       // 右列是 0 宽的轨道（面板挂在上面），画列没用；由 dockkit 容器画一层玻璃。
       for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
@@ -732,9 +749,7 @@ html ${mode}[${MARK}='rightbar'] [data-dockkit-float] {
       // 只加在标题条自身/它的 ::before 绘制层上。
       if (frost) {
         rules.push(`html [data-windows-titlebar],
-html [${MARK}='frame']::before {
-  backdrop-filter: blur(${Math.round(clamp(cfg.frostBlur, 0, 40))}px);
-  -webkit-backdrop-filter: blur(${Math.round(clamp(cfg.frostBlur, 0, 40))}px);
+html [${MARK}='frame']::before {${sidebarFrost}
 }`)
       }
       // 页面视图（插件页/统计页等，页头带 _pageBar）：
@@ -791,7 +806,7 @@ html [${MARK}='rightbar'] [data-dockkit-float]::before {
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  pointer-events: none;${frost}
+  pointer-events: none;${filesFrost}
 }`)
       }
       // 对话框 / 底部输入框：
@@ -807,13 +822,13 @@ html [${MARK}='rightbar'] [data-dockkit-float]::before {
   border-radius: inherit;
   pointer-events: none;${frost}
 }`)
-        rules.push(`html [data-slot='conversation.composer'] [class$='_card'] {${frost}\n}`)
+        rules.push(`html [data-slot='conversation.composer'] [class$='_card'] {${composerFrost}\n}`)
         // 输入区里的引用/附件小卡片：给它们自己的玻璃底，别让对话文字从底下穿出来。
         rules.push(`html [data-slot='conversation.composer'] [class*='_quote'],
 html [data-slot='conversation.composer'] [class*='_chip'],
 html [data-slot='conversation.composer'] [class*='_refChip'] {
   border-radius: 12px;
-  background-color: ${withAlpha(light.overlay.color, clamp(light.overlay.alpha, 0.4, 0.95))};${frost}
+  background-color: ${withAlpha(light.overlay.color, clamp(light.overlay.alpha, 0.4, 0.95))};${composerFrost}
 }`)
         rules.push(`html body[data-ds-dark-theme] [data-slot='conversation.composer'] [class*='_quote'],
 html body[data-ds-dark-theme] [data-slot='conversation.composer'] [class*='_chip'],
@@ -822,7 +837,7 @@ html body[data-ds-dark-theme] [data-slot='conversation.composer'] [class*='_refC
 }`)
         rules.push(`html [data-composer-dock] {
   border-radius: 12px;
-  background-color: ${glass(light, 'composer')};${frost}
+  background-color: ${glass(light, 'composer')};${composerFrost}
 }`)
         rules.push(`html body[data-ds-dark-theme] [data-composer-dock] {
   background-color: ${glass(dark, 'composer')};
@@ -1268,6 +1283,10 @@ ${wallpaperCss(cfg)}
         }
         for (const [key, name] of Object.entries(WALLPAPER_VARS)) {
           root.style.setProperty(name, values[key])
+        }
+        // 每个部位独立的磨砂强度（0px = 关闭）
+        for (const key of ['sidebarFrost', 'filesFrost', 'chatFrost', 'composerFrost', 'overlayFrost']) {
+          root.style.setProperty(`--dshui-frost-${key}`, `${Math.round(clamp(config[key], 0, 40))}px`)
         }
       }
 
@@ -2063,12 +2082,6 @@ ${wallpaperCss(cfg)}
           ),
         ),
 
-        h(Card, { title: t('frost'), hint: t('frostHint') },
-          h(Row, { label: t('frostBlur'), hint: t('frostBlurHint') },
-            h(Slider, { value: config.frostBlur, min: 0, max: 40, onChange: (value) => update({ frostBlur: value }), suffix: 'px' }),
-          ),
-        ),
-
         h(Card, { title: t('wallpaper'), hint: t('wallpaperHint') },
           h(Row, { label: t('mode') },
             h('div', { className: 'dshuiskin-seg' },
@@ -2147,6 +2160,9 @@ ${wallpaperCss(cfg)}
         h(Card, { title: t('chat'), hint: t('surfaceHint') },
           h(Row, { label: t('opacity') },
             h(Slider, { value: config.chatOpacity, min: 0, max: 100, onChange: (value) => update({ chatOpacity: value }), suffix: '%' }),
+          h(Row, { label: t('frostBlur'), hint: t('frostBlurHint') },
+            h(Slider, { value: config.chatFrost, min: 0, max: 40, onChange: (value) => update({ chatFrost: value }), suffix: 'px' }),
+          ),
           ),
           h(Row, { label: t('baseColor') },
             h(ColorField, { value: config.chatColor, onChange: (value) => update({ chatColor: value }) }),
@@ -2161,6 +2177,9 @@ ${wallpaperCss(cfg)}
             ? null
             : h(Row, { label: t('opacity') },
               h(Slider, { value: config.filesOpacity, min: 0, max: 100, onChange: (value) => update({ filesOpacity: value }), suffix: '%' }),
+          h(Row, { label: t('frostBlur'), hint: t('frostBlurHint') },
+            h(Slider, { value: config.filesFrost, min: 0, max: 40, onChange: (value) => update({ filesFrost: value }), suffix: 'px' }),
+          ),
             ),
           config.filesFollowSidebar
             ? null
@@ -2172,6 +2191,9 @@ ${wallpaperCss(cfg)}
         h(Card, { title: t('sidebar'), hint: t('surfaceHint') },
           h(Row, { label: t('opacity') },
             h(Slider, { value: config.sidebarOpacity, min: 0, max: 100, onChange: (value) => update({ sidebarOpacity: value }), suffix: '%' }),
+          h(Row, { label: t('frostBlur'), hint: t('frostBlurHint') },
+            h(Slider, { value: config.sidebarFrost, min: 0, max: 40, onChange: (value) => update({ sidebarFrost: value }), suffix: 'px' }),
+          ),
           ),
           h(Row, { label: t('baseColor') },
             h(ColorField, { value: config.sidebarColor, onChange: (value) => update({ sidebarColor: value }) }),
@@ -2184,12 +2206,18 @@ ${wallpaperCss(cfg)}
           ),
           h(Row, { label: t('opacity') },
             h(Slider, { value: config.composerOpacity, min: 0, max: 100, onChange: (value) => update({ composerOpacity: value }), suffix: '%' }),
+          h(Row, { label: t('frostBlur'), hint: t('frostBlurHint') },
+            h(Slider, { value: config.composerFrost, min: 0, max: 40, onChange: (value) => update({ composerFrost: value }), suffix: 'px' }),
+          ),
           ),
         ),
 
         h(Card, { title: t('overlay'), hint: t('overlayHint') },
           h(Row, { label: t('overlayOpacity') },
             h(Slider, { value: config.overlayOpacity, min: 0, max: 100, onChange: (value) => update({ overlayOpacity: value }), suffix: '%' }),
+          h(Row, { label: t('frostBlur'), hint: t('frostBlurHint') },
+            h(Slider, { value: config.overlayFrost, min: 0, max: 40, onChange: (value) => update({ overlayFrost: value }), suffix: 'px' }),
+          ),
           ),
         ),
 

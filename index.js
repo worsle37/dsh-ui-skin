@@ -45,11 +45,15 @@ export const Config = z.object({
   chatColor: z.string().default('#151517').volatile(),
   /** 对话界面不透明度（0-100），100 = 完全遮住壁纸。 */
   chatOpacity: z.number().step(1).min(0).max(100).default(72).volatile(),
+  /** 对话界面磨砂强度（0-40 px）。 */
+  chatFrost: z.number().step(1).min(0).max(40).default(10).volatile(),
 
   /** 右侧「工作区文件」栏底色。 */
   filesColor: z.string().default('#151517').volatile(),
   /** 右侧「工作区文件」栏不透明度（0-100）。 */
   filesOpacity: z.number().step(1).min(0).max(100).default(78).volatile(),
+  /** 右侧「工作区文件」栏磨砂强度（0-40 px）。 */
+  filesFrost: z.number().step(1).min(0).max(40).default(10).volatile(),
   /** 右侧栏是否直接沿用左侧边栏的配色（底色 + 不透明度）。 */
   filesFollowSidebar: z.boolean().default(true).volatile(),
 
@@ -57,18 +61,24 @@ export const Config = z.object({
   sidebarColor: z.string().default('#1b1b1c').volatile(),
   /** 左侧边栏不透明度（0-100）。 */
   sidebarOpacity: z.number().step(1).min(0).max(100).default(86).volatile(),
+  /** 左侧边栏磨砂强度（0-40 px）。 */
+  sidebarFrost: z.number().step(1).min(0).max(40).default(10).volatile(),
 
   /** 底部输入栏（输入卡片）底色。 */
   composerColor: z.string().default('#2c2c2e').volatile(),
   /** 底部输入栏不透明度（0-100）。 */
   composerOpacity: z.number().step(1).min(0).max(100).default(88).volatile(),
+  /** 底部输入栏磨砂强度（0-40 px）。 */
+  composerFrost: z.number().step(1).min(0).max(40).default(10).volatile(),
 
   /** 交互强调色：只影响发送键、链接、焦点框、选中描边这类交互元素。 */
   accentColor: z.string().default('#4176e6').volatile(),
 
   /** 弹层 / 对话框 / 菜单 / 悬浮卡片的不透明度（0-100）。 */
   overlayOpacity: z.number().step(1).min(0).max(100).default(88).volatile(),
-  /** 磨砂玻璃模糊半径（0-40 px；0 = 关闭）。只作用于左右侧栏、对话框、底部输入框。 */
+  /** 弹层 / 对话框 / 菜单的磨砂强度（0-40 px）。 */
+  overlayFrost: z.number().step(1).min(0).max(40).default(10).volatile(),
+  /** 旧版全局磨砂强度；保留字段只为兼容旧配置，不再使用。 */
   frostBlur: z.number().step(1).min(0).max(40).default(10).volatile(),
   /** 全局文字颜色；空串 = 跟随主题（自动可读）。 */
   fontColor: z.string().default('').volatile(),
