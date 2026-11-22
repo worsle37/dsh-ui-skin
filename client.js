@@ -1089,6 +1089,7 @@ ${wallpaperCss(cfg)}
         this.brandIcon = null
         this.tokenSignature = null
         this.lastGlassScan = 0
+        this.glassScanPending = false
         this.wallpaperInfo = null
         this.wallpaperSampleKey = ''
         this.hero = new HeroSync(() => this.store.get())
@@ -1210,17 +1211,28 @@ ${wallpaperCss(cfg)}
         }
       }
 
+      /** 浮层扫描放到浏览器空闲时做，避免和头像/流式输出抢主线程。 */
+      scheduleGlassScan () {
+        if (this.glassScanPending || this.disposed) return
+        this.glassScanPending = true
+        const run = (fn) => (typeof window.requestIdleCallback === 'function'
+          ? window.requestIdleCallback(fn, { timeout: 400 })
+          : window.setTimeout(fn, 200))
+        run(() => {
+          this.glassScanPending = false
+          if (this.disposed) return
+          this.lastGlassScan = Date.now()
+          this.markGlassRoots()
+        })
+      }
+
       scheduleMark () {
         if (this.markFrame !== 0 || this.disposed) return
         this.markFrame = requestAnimationFrame(() => {
           this.markFrame = 0
           // 新弹出的浮层（指令面板/引用卡/对话框）也要打上弹层玻璃标记。
-          // 流式输出时 DOM 变动很频繁，这里节流到最多 250ms 一次，避免持续全量扫描。
-          const now = Date.now()
-          if (now - this.lastGlassScan > 250) {
-            this.lastGlassScan = now
-            this.markGlassRoots()
-          }
+          // 流式输出时 DOM 变动很频繁，扫描节流到 250ms + 空闲时段执行。
+          if (Date.now() - this.lastGlassScan > 250) this.scheduleGlassScan()
           const { frame, sidebar, center, rightbar } = this.marks
           if (frame && sidebar && center && rightbar
             && frame.isConnected && sidebar.isConnected && center.isConnected && rightbar.isConnected) return
@@ -1369,6 +1381,14 @@ ${wallpaperCss(cfg)}
 
       teardown () {
         this.clearWallpaper()
+        // 皮肤关掉后不再盯着 DOM（省 CPU）；重新启用时 markColumns 会重建观察器。
+        if (this.observer) {
+          this.observer.disconnect()
+          this.observer = null
+        }
+        if (this.glassScanPending) {
+          this.glassScanPending = false
+        }
         if (this.styleEl) {
           this.styleEl.remove()
           this.styleEl = null
