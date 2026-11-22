@@ -21,76 +21,76 @@ export const Config = z.object({
   enabled: z.boolean().default(true).volatile(),
 
   /** 壁纸类型：渐变 / 纯色 / 本地图片 / 关闭。 */
-  wallpaperMode: z.union([...WALLPAPER_MODES]).default('gradient').volatile(),
+  wallpaperMode: z.union([...WALLPAPER_MODES]).default('image').volatile(),
   /** 壁纸主色（渐变起点 / 纯色）。 */
-  wallpaperColor1: z.string().default('#1e2a4a').volatile(),
+  wallpaperColor1: z.string().default('#12324d').volatile(),
   /** 壁纸副色（渐变终点）。 */
-  wallpaperColor2: z.string().default('#0b1020').volatile(),
+  wallpaperColor2: z.string().default('#071722').volatile(),
   /** 渐变角度（度）。 */
   wallpaperAngle: z.number().step(1).min(0).max(360).default(135).volatile(),
   /** 本地图片的 data URL；空串表示没有图片。 */
-  wallpaperImage: z.string().default('').volatile(),
+  wallpaperImage: z.string().default('default').volatile(),
   /** 图片壁纸的横向露出位置（0-100，50 = 居中）。 */
-  wallpaperImagePosX: z.number().step(1).min(0).max(100).default(50).volatile(),
+  wallpaperImagePosX: z.number().step(1).min(0).max(100).default(20).volatile(),
   /** 图片壁纸的纵向露出位置（0-100，50 = 居中）。 */
-  wallpaperImagePosY: z.number().step(1).min(0).max(100).default(50).volatile(),
+  wallpaperImagePosY: z.number().step(1).min(0).max(100).default(100).volatile(),
   /** 图片壁纸的缩放（100-250，100 = 刚好铺满窗口）。 */
-  wallpaperImageScale: z.number().step(1).min(100).max(250).default(100).volatile(),
+  wallpaperImageScale: z.number().step(1).min(100).max(250).default(104).volatile(),
   /** 壁纸暗化遮罩强度（0-80）。 */
-  wallpaperDim: z.number().step(1).min(0).max(80).default(0).volatile(),
+  wallpaperDim: z.number().step(1).min(0).max(80).default(34).volatile(),
   /** 壁纸模糊半径（0-40 px）。 */
   wallpaperBlur: z.number().step(1).min(0).max(40).default(0).volatile(),
 
   /** 对话界面底色。 */
-  chatColor: z.string().default('#151517').volatile(),
+  chatColor: z.string().default('#414e74').volatile(),
   /** 对话界面不透明度（0-100），100 = 完全遮住壁纸。 */
-  chatOpacity: z.number().step(1).min(0).max(100).default(72).volatile(),
+  chatOpacity: z.number().step(1).min(0).max(100).default(54).volatile(),
   /** 对话界面磨砂强度（0-40 px）。 */
   chatFrost: z.number().step(1).min(0).max(40).default(10).volatile(),
 
   /** 右侧「工作区文件」栏底色。 */
-  filesColor: z.string().default('#151517').volatile(),
+  filesColor: z.string().default('#6f77a2').volatile(),
   /** 右侧「工作区文件」栏不透明度（0-100）。 */
-  filesOpacity: z.number().step(1).min(0).max(100).default(78).volatile(),
+  filesOpacity: z.number().step(1).min(0).max(100).default(68).volatile(),
   /** 右侧「工作区文件」栏磨砂强度（0-40 px）。 */
-  filesFrost: z.number().step(1).min(0).max(40).default(10).volatile(),
+  filesFrost: z.number().step(1).min(0).max(40).default(15).volatile(),
   /** 右侧栏是否直接沿用左侧边栏的配色（底色 + 不透明度）。 */
-  filesFollowSidebar: z.boolean().default(true).volatile(),
+  filesFollowSidebar: z.boolean().default(false).volatile(),
 
   /** 左侧边栏底色。 */
-  sidebarColor: z.string().default('#1b1b1c').volatile(),
+  sidebarColor: z.string().default('#313d58').volatile(),
   /** 左侧边栏不透明度（0-100）。 */
-  sidebarOpacity: z.number().step(1).min(0).max(100).default(86).volatile(),
+  sidebarOpacity: z.number().step(1).min(0).max(100).default(62).volatile(),
   /** 左侧边栏磨砂强度（0-40 px）。 */
-  sidebarFrost: z.number().step(1).min(0).max(40).default(10).volatile(),
+  sidebarFrost: z.number().step(1).min(0).max(40).default(2).volatile(),
 
   /** 底部输入栏（输入卡片）底色。 */
-  composerColor: z.string().default('#2c2c2e').volatile(),
+  composerColor: z.string().default('#2f2e2e').volatile(),
   /** 底部输入栏不透明度（0-100）。 */
-  composerOpacity: z.number().step(1).min(0).max(100).default(88).volatile(),
+  composerOpacity: z.number().step(1).min(0).max(100).default(0).volatile(),
   /** 底部输入栏磨砂强度（0-40 px）。 */
-  composerFrost: z.number().step(1).min(0).max(40).default(10).volatile(),
+  composerFrost: z.number().step(1).min(0).max(40).default(13).volatile(),
 
   /** 交互强调色：只影响发送键、链接、焦点框、选中描边这类交互元素。 */
-  accentColor: z.string().default('#4176e6').volatile(),
+  accentColor: z.string().default('#b2a158').volatile(),
 
   /** 弹层 / 对话框 / 菜单 / 悬浮卡片的不透明度（0-100）。 */
-  overlayOpacity: z.number().step(1).min(0).max(100).default(88).volatile(),
+  overlayOpacity: z.number().step(1).min(0).max(100).default(85).volatile(),
   /** 弹层 / 对话框 / 菜单的磨砂强度（0-40 px）。 */
-  overlayFrost: z.number().step(1).min(0).max(40).default(10).volatile(),
+  overlayFrost: z.number().step(1).min(0).max(40).default(19).volatile(),
   /** 旧版全局磨砂强度；保留字段只为兼容旧配置，不再使用。 */
-  frostBlur: z.number().step(1).min(0).max(40).default(10).volatile(),
+  frostBlur: z.number().step(1).min(0).max(40).default(33).volatile(),
   /** 全局文字颜色；空串 = 跟随主题（自动可读）。 */
   fontColor: z.string().default('').volatile(),
   /** 对比度不足时自动提高面板不透明度。 */
   autoContrast: z.boolean().default(true).volatile(),
 
   /** 首页大标题文字；空串 = 保持默认。 */
-  heroTitle: z.string().default('').volatile(),
+  heroTitle: z.string().default('Abq~Here we are').volatile(),
   /** 首页「预览版」徽标文字；空串 = 保持默认。 */
-  heroBadge: z.string().default('').volatile(),
+  heroBadge: z.string().default('?').volatile(),
   /** 首页标题文字颜色；空串 = 跟随主题。 */
-  heroColor: z.string().default('').volatile(),
+  heroColor: z.string().default('#86a3fc').volatile(),
   /** 首页鲸鱼图标（data URL）；空串 = 保持默认图标。 */
   heroIcon: z.string().default('').volatile(),
 })
