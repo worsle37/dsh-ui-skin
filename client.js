@@ -37,6 +37,7 @@ window.__ModuleLoader__.load({
     const MARK = 'data-dsh-ui-skin'
 const GLASS_ROOT = 'data-dshui-glass'
 const GLASS_SURFACE = 'data-dshui-surface'
+const SURFACE_SELECTOR = "[role='menu'], [role='toolbar'], [role='listbox'], [role='tooltip'], [data-trigger-menu], [class*='_toolbar'], [class*='_selection'], [class*='_popover'], [class*='_menu_'], [class*='_textInteraction'], [class*='_jump'], [class*='_scrollButton'], [class*='_scrollTo'], [class*='_toBottom'], [class*='_backTo'], [class*='_quote'], [class$='_menu']"
     /** 设置服务缺席时的退化存储 key。 */
     const LOCAL_KEY = 'dsh.ui-skin.config.v1'
 
@@ -889,9 +890,9 @@ html body[data-ds-dark-theme] [data-slot='conversation.composer'] [class*='_refC
       // Windows 桌面：DSH 只给内容区左上角 16px 圆角；皮肤铺满壁纸后那个缺口会显脏，统一拍平。
       rules.push(`html [${MARK}='center'],
 html body[data-ds-dark-theme] [${MARK}='center'] { border-radius: 0 !important; }`)
-      // 窗口容器：用侧栏玻璃色兜底，避免窗口边缘/圆角处露出黑底。
-      rules.push(`html [${MARK}='frame'] {\n  background-color: ${glass(light, 'sidebar')};\n  --dsw-specific-sidebar-fill: ${glass(light, 'sidebar')};\n}`)
-      rules.push(`html body[data-ds-dark-theme] [${MARK}='frame'] {\n  background-color: ${glass(dark, 'sidebar')};\n  --dsw-specific-sidebar-fill: ${glass(dark, 'sidebar')};\n}`)
+      // 窗口容器保持透明（铺一层侧栏色会让所有列下面多垫一层，对话区会发闷）；边缘交给壁纸层。
+      rules.push(`html [${MARK}='frame'] {\n  background-color: transparent !important;\n  --dsw-specific-sidebar-fill: ${glass(light, 'sidebar')};\n}`)
+      rules.push(`html body[data-ds-dark-theme] [${MARK}='frame'] {\n  background-color: transparent !important;\n  --dsw-specific-sidebar-fill: ${glass(dark, 'sidebar')};\n}`)
       // 对话框底色和页面玻璃统一（之前带 backdrop-filter 时边缘会发黑）。
       for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
         rules.push(`html ${mode}[role='dialog'] {
@@ -1219,24 +1220,10 @@ ${wallpaperCss(cfg)}
           if (child.querySelector(`[${MARK}]`)) continue
           if (!child.hasAttribute(GLASS_ROOT)) child.setAttribute(GLASS_ROOT, '')
         }
-        // 再扫一遍「浮动小面板」：选中文字工具条、菜单、预览卡等。
-        // 这些元素常常没有自己的背景，透明后底下文字会穿上来。
-        const surfaceSelector = "[role='menu'], [role='toolbar'], [role='listbox'], [role='tooltip'], [data-trigger-menu], [class*='_toolbar'], [class*='_selection'], [class*='_popover'], [class*='_menu_'], [class*='_textInteraction'], [class*='_jump'], [class*='_scrollButton'], [class*='_scrollTo'], [class*='_toBottom'], [class*='_backTo'], [class$='_menu']"
-        // 先清掉上一轮标记：组件可能已经变化，避免旧的玻璃底残留（例如按钮里的文字 span）。
-        for (const stale of document.querySelectorAll(`[${GLASS_SURFACE}]`)) stale.removeAttribute(GLASS_SURFACE)
-        for (const el of document.querySelectorAll(surfaceSelector)) {
-          if (!(el instanceof HTMLElement)) continue
-          // 只处理真正浮起来的面板：static/inline 的标签（按钮文字等）绝不能染背景。
-          if (el.closest('button, a, label, input, textarea')) continue
-          const style = getComputedStyle(el)
-          if (style.position !== 'fixed' && style.position !== 'absolute') continue
-          const rect = el.getBoundingClientRect()
-          if (rect.width < 20 || rect.height < 16 || rect.width > window.innerWidth * 0.95) continue
-          // 语义上的菜单/工具条允许大尺寸；其余按类名命中的只收小按钮，
-          // 避免把滚动渐隐条（宽条）之类当成浮层染上背景。
-          const semantic = el.matches("[role='menu'], [role='toolbar'], [role='listbox'], [role='tooltip'], [data-trigger-menu], [class*='_textInteraction']")
-          if (!semantic && (rect.width > 260 || rect.height > 260)) continue
-          el.setAttribute(GLASS_SURFACE, '')
+        // 全量扫描只做兜底（新浮层平时由 MutationObserver 同步打标记）；不再清空旧标记，
+        // 避免把同步打上的标记短暂抹掉造成闪烁。
+        for (const el of document.querySelectorAll(SURFACE_SELECTOR)) {
+          if (this.isSurfaceCandidate(el)) el.setAttribute(GLASS_SURFACE, '')
         }
       }
 
@@ -1256,9 +1243,43 @@ ${wallpaperCss(cfg)}
         apply(center, 'center')
         apply(rightbar, 'rightbar')
         if (!this.observer) {
-          this.observer = new MutationObserver(() => this.scheduleMark())
+          this.observer = new MutationObserver((records) => this.onDomMutations(records))
           this.observer.observe(document.body, { childList: true, subtree: true })
         }
+      }
+
+      /** 单个元素是否是需要玻璃底的浮动面板（同步判断，很便宜）。 */
+      isSurfaceCandidate (el) {
+        if (!(el instanceof HTMLElement) || el.hasAttribute(GLASS_SURFACE)) return false
+        if (!el.matches(SURFACE_SELECTOR)) return false
+        if (el.closest('button, a, label, input, textarea')) return false
+        const style = getComputedStyle(el)
+        if (style.position !== 'fixed' && style.position !== 'absolute') return false
+        const rect = el.getBoundingClientRect()
+        if (rect.width < 20 || rect.height < 16 || rect.width > window.innerWidth * 0.95) return false
+        const semantic = el.matches("[role='menu'], [role='toolbar'], [role='listbox'], [role='tooltip'], [data-trigger-menu], [class*='_textInteraction']")
+        if (!semantic && (rect.width > 260 || rect.height > 260)) return false
+        return true
+      }
+
+      /**
+       * 新加入 DOM 的浮层：在 MutationObserver 回调（微任务，绘制之前）里同步打标记，
+       * 这样第一帧就有玻璃底，不会出现“有时透明、有时正常”的闪现。
+       */
+      tagNewSurfaces (root) {
+        if (!(root instanceof HTMLElement)) return
+        if (this.isSurfaceCandidate(root)) root.setAttribute(GLASS_SURFACE, '')
+        for (const el of root.querySelectorAll(SURFACE_SELECTOR)) {
+          if (this.isSurfaceCandidate(el)) el.setAttribute(GLASS_SURFACE, '')
+        }
+      }
+
+      onDomMutations (records) {
+        if (this.disposed) return
+        for (const record of records) {
+          for (const node of record.addedNodes) this.tagNewSurfaces(node)
+        }
+        this.scheduleMark()
       }
 
       /** 浮层扫描放到浏览器空闲时做，避免和头像/流式输出抢主线程。 */
@@ -1282,7 +1303,7 @@ ${wallpaperCss(cfg)}
           this.markFrame = 0
           // 新弹出的浮层（指令面板/引用卡/对话框）也要打上弹层玻璃标记。
           // 流式输出时 DOM 变动很频繁，扫描节流到 250ms + 空闲时段执行。
-          if (Date.now() - this.lastGlassScan > 250) this.scheduleGlassScan()
+
           const { frame, sidebar, center, rightbar } = this.marks
           if (frame && sidebar && center && rightbar
             && frame.isConnected && sidebar.isConnected && center.isConnected && rightbar.isConnected) return
