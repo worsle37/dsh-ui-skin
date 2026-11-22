@@ -590,13 +590,15 @@ html::after {
         entries.push(['--dsw-alias-bg-overlay', overlayFill])
         entries.push(['--dsw-alias-bg-module-platform', overlayFill])
         entries.push(['--dsw-specific-menu', overlayFill])
-        // 对话区里的「浮层卡片」（轮次导航预览、引用卡等）用 layer 系 token 画底；
-        // 这里给它们一档弹层玻璃，否则会完全透明、底下文字穿上来。
+        // 对话区里的卡片（文件卡/编辑卡/预览卡）统一用同一档玻璃底，
+        // 不要有的用弹层色、有的用卡片色，看起来才一致。
         if (layers) {
-          const layerFill = withAlpha(overlay.color, clamp(overlay.alpha, 0.45, 0.98))
-          entries.push(['--dsw-alias-bg-layer-1', layerFill])
-          entries.push(['--dsw-alias-bg-layer-2', layerFill])
-          entries.push(['--dsw-alias-bg-layer-3', layerFill])
+          const cardFill = withAlpha(tintColor(color, dark ? 0.06 : -0.06), subtle)
+          entries.push(['--dsw-alias-bg-overlay', cardFill])
+          entries.push(['--dsw-alias-bg-module-platform', cardFill])
+          entries.push(['--dsw-alias-bg-layer-1', cardFill])
+          entries.push(['--dsw-alias-bg-layer-2', cardFill])
+          entries.push(['--dsw-alias-bg-layer-3', cardFill])
         }
       } else {
         entries.push(['--dsw-alias-bg-overlay', 'transparent'])
@@ -604,21 +606,21 @@ html::after {
       }
       const subtleTokens = [
         ['--dsw-alias-card-fill', 0.06],
-        ['--dsw-alias-card-fill-hover', 0.12],
-        ['--dsw-alias-card-tile-fill', 0.04],
-        ['--dsw-alias-markdown-code-block', 0.1],
-        ['--dsw-alias-markdown-code-block-banner', 0.14],
-        ['--dsw-alias-markdown-inline-code', 0.16],
-        ['--dsw-specific-bubble', 0.12],
-        ['--dsw-specific-bubble-highlight', 0.08],
-        ['--dsw-specific-selector', 0.12],
-        ['--dsw-specific-tip', 0.1],
-        ['--dsw-specific-guide-hero', 0.04],
-        ['--dsw-specific-sidebar-nav-item-active', 0.14],
-        ['--dsw-alias-button-elevated-fill', 0.2],
-        ['--dsw-alias-button-floating-fill', 0.14],
-        ['--dsw-alias-button-floating-hover', 0.2],
-        ['--dsw-alias-interactive-bg-hover-solid', 0.12],
+        ['--dsw-alias-card-fill-hover', 0.06],
+        ['--dsw-alias-card-tile-fill', 0.06],
+        ['--dsw-alias-markdown-code-block', 0.06],
+        ['--dsw-alias-markdown-code-block-banner', 0.06],
+        ['--dsw-alias-markdown-inline-code', 0.06],
+        ['--dsw-specific-bubble', 0.06],
+        ['--dsw-specific-bubble-highlight', 0.06],
+        ['--dsw-specific-selector', 0.06],
+        ['--dsw-specific-tip', 0.06],
+        ['--dsw-specific-guide-hero', 0.06],
+        ['--dsw-specific-sidebar-nav-item-active', 0.06],
+        ['--dsw-alias-button-elevated-fill', 0.06],
+        ['--dsw-alias-button-floating-fill', 0.06],
+        ['--dsw-alias-button-floating-hover', 0.06],
+        ['--dsw-alias-interactive-bg-hover-solid', 0.06],
       ]
       for (const [name, amount] of subtleTokens) {
         entries.push([name, withAlpha(tintColor(color, dark ? amount : -amount), subtle)])
