@@ -133,6 +133,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev-instance.ps1 -St
 
 ## 更新记录
 
+- **0.2.3**：修复开磨砂后 **Ctrl+B 收起侧边栏按钮飘位**——模糊层从容器改到 `::before` 独立图层，
+  不再让侧栏成为 `position: fixed` 后代的包含块；同时修掉 `package.json` 的 BOM（会让 `dsh plugin`
+  安装校验报 `Unexpected token`）。
 - **0.2.2**：小范围磨砂回归——只给**左右侧边栏、对话框、底部输入框**加模糊（`frostBlur`，默认 10px，0 = 关），
   不再对所有卡片做大范围 `backdrop-filter`；右侧栏新增「跟随左侧边栏配色」开关（默认开，右栏直接用左栏底色/不透明度）。
 - **0.2.1**：图片壁纸支持**拖动调整露出位置** + 缩放（100–250%）+ 一键居中；定位按原图像素尺寸计算，

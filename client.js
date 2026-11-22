@@ -659,6 +659,9 @@ html::after {
     /**
      * 磨砂玻璃：只作用于用户指定的四处——左右侧栏、对话框、底部输入框。
      * 刻意不做「所有卡片都磨」的大范围 backdrop-filter：那种大量模糊层在部分机器上会把渲染搞挂。
+     *
+     * 侧栏/右栏不能把 backdrop-filter 直接加在容器上：它会成为 position:fixed 后代的包含块，
+     * 把 DSH 里浮动的「收起侧边栏」按钮之类的定位搞飘。改用 ::before 独立图层来模糊。
      */
     function frostDeclarations (cfg) {
       const blur = Math.round(clamp(cfg.frostBlur, 0, 40))
@@ -672,19 +675,39 @@ html::after {
       const frost = frostDeclarations(cfg)
       // 左列 / 中列：列本身画唯一一层玻璃，内部表面 token 全部透明（见 areaDeclarations）。
       for (const [mark, key] of [['center', 'chat'], ['sidebar', 'sidebar']]) {
-        const columnFrost = mark === 'sidebar' ? frost : ''
-        rules.push(`html [${MARK}='${mark}'] {\n  background-color: ${glass(light, key)};\n${areaDeclarations(light[key].color, light[key].alpha)}${columnFrost}\n}`)
-        rules.push(`html body[data-ds-dark-theme] [${MARK}='${mark}'] {\n  background-color: ${glass(dark, key)};\n${areaDeclarations(dark[key].color, dark[key].alpha)}${columnFrost}\n}`)
+        rules.push(`html [${MARK}='${mark}'] {\n  background-color: ${glass(light, key)};\n${areaDeclarations(light[key].color, light[key].alpha)}\n}`)
+        rules.push(`html body[data-ds-dark-theme] [${MARK}='${mark}'] {\n  background-color: ${glass(dark, key)};\n${areaDeclarations(dark[key].color, dark[key].alpha)}\n}`)
+      }
+      // 磨砂图层的公共写法：独立 ::before，避免改掉容器的 fixed 包含块。
+      if (frost) {
+        rules.push(`html [${MARK}='sidebar'] {\n  position: relative;\n  isolation: isolate;\n}`)
+        rules.push(`html [${MARK}='sidebar']::before {\n  content: '';\n  position: absolute;\n  inset: 0;\n  z-index: -1;\n  pointer-events: none;${frost}\n}`)
       }
       // 右列是 0 宽的轨道（面板挂在上面），画列没用；由 dockkit 容器画一层玻璃。
       for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
         rules.push(`html ${mode}[${MARK}='rightbar'] {\n${areaDeclarations(state.files.color, state.files.alpha)}\n}`)
         rules.push(`html ${mode}[${MARK}='rightbar'] [data-dockkit-host],
 html ${mode}[${MARK}='rightbar'] [data-dockkit-float] {
-  background-color: ${glass(state, 'files')};${frost}
+  background-color: ${glass(state, 'files')};
 }`)
       }
-      // 对话框 / 底部输入框：同样是玻璃表面。
+      if (frost) {
+        rules.push(`html [${MARK}='rightbar'] [data-dockkit-host],
+html [${MARK}='rightbar'] [data-dockkit-float] {
+  position: relative;
+  isolation: isolate;
+}`)
+        rules.push(`html [${MARK}='rightbar'] [data-dockkit-host]::before,
+html [${MARK}='rightbar'] [data-dockkit-float]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;${frost}
+}`)
+      }
+      // 对话框 / 底部输入框没有这类浮动后代，直接加在元素上即可。
       if (frost) {
         rules.push(`html [role='dialog'] {${frost}\n}`)
         rules.push(`html [data-slot='conversation.composer'] {${frost}\n}`)
