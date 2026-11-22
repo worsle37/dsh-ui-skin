@@ -1088,6 +1088,7 @@ ${wallpaperCss(cfg)}
         this.brandInject = null
         this.brandIcon = null
         this.tokenSignature = null
+        this.lastGlassScan = 0
         this.wallpaperInfo = null
         this.wallpaperSampleKey = ''
         this.hero = new HeroSync(() => this.store.get())
@@ -1176,13 +1177,13 @@ ${wallpaperCss(cfg)}
         }
         // 再扫一遍「浮动小面板」：选中文字工具条、菜单、预览卡等。
         // 这些元素常常没有自己的背景，透明后底下文字会穿上来。
-        const surfaceSelector = "[role='menu'], [role='toolbar'], [role='listbox'], [role='tooltip'], [data-trigger-menu], [class*='_toolbar'], [class*='_selection'], [class*='_popover'], [class*='_menu_'], [class*='_textInteraction'], [class$='_menu']"
+        const surfaceSelector = "[role='menu'], [role='toolbar'], [role='listbox'], [role='tooltip'], [data-trigger-menu], [class*='_toolbar'], [class*='_selection'], [class*='_popover'], [class*='_menu_'], [class*='_textInteraction'], [class*='_jump'], [class*='_scroll'], [class*='_toBottom'], [class*='_backTo'], [class$='_menu']"
         for (const el of document.querySelectorAll(surfaceSelector)) {
           if (!(el instanceof HTMLElement) || el.hasAttribute(GLASS_SURFACE)) continue
           const style = getComputedStyle(el)
           if (style.position !== 'fixed' && style.position !== 'absolute') continue
           const rect = el.getBoundingClientRect()
-          if (rect.width < 40 || rect.height < 16 || rect.width > window.innerWidth * 0.95) continue
+          if (rect.width < 20 || rect.height < 16 || rect.width > window.innerWidth * 0.95) continue
           el.setAttribute(GLASS_SURFACE, '')
         }
       }
@@ -1214,7 +1215,12 @@ ${wallpaperCss(cfg)}
         this.markFrame = requestAnimationFrame(() => {
           this.markFrame = 0
           // 新弹出的浮层（指令面板/引用卡/对话框）也要打上弹层玻璃标记。
-          this.markGlassRoots()
+          // 流式输出时 DOM 变动很频繁，这里节流到最多 250ms 一次，避免持续全量扫描。
+          const now = Date.now()
+          if (now - this.lastGlassScan > 250) {
+            this.lastGlassScan = now
+            this.markGlassRoots()
+          }
           const { frame, sidebar, center, rightbar } = this.marks
           if (frame && sidebar && center && rightbar
             && frame.isConnected && sidebar.isConnected && center.isConnected && rightbar.isConnected) return
