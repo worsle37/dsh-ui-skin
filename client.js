@@ -36,6 +36,8 @@ window.__ModuleLoader__.load({
     /** 作用域标记属性。 */
     const MARK = 'data-dsh-ui-skin'
 const GLASS_ROOT = 'data-dshui-glass'
+const GLASS_SURFACE = 'data-dshui-surface'
+const GLASS_SURFACE = 'data-dshui-surface'
     /** 设置服务缺席时的退化存储 key。 */
     const LOCAL_KEY = 'dsh.ui-skin.config.v1'
 
@@ -780,8 +782,14 @@ html ${mode}[class*='_pageHead'] {
 }`)
         }
       }
-      // body 下的浮层容器（指令面板/引用卡/Toast）：把内部的「层」token 换成弹层玻璃，
-      // 这样它们自带的背景不再透明，底下文字不会穿出来。
+      // 浮动小面板（选中文字工具条/上下文菜单/预览卡）：统一补玻璃底 + 磨砂。
+      for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
+        rules.push(`html ${mode}[${GLASS_SURFACE}] {
+  border-radius: 12px;
+  background-color: ${withAlpha(state.overlay.color, clamp(state.overlay.alpha, 0.6, 0.99))};${frost}
+}`)
+      }
+      // body 下的浮层容器（指令面板/引用卡/Toast）：把内部的「层」token 换成弹层玻璃，      // 这样它们自带的背景不再透明，底下文字不会穿出来。
       for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
         const fill = withAlpha(state.overlay.color, clamp(state.overlay.alpha, 0.45, 0.98))
         rules.push(`html ${mode}[${GLASS_ROOT}] {
@@ -1165,6 +1173,17 @@ ${wallpaperCss(cfg)}
           if (child.querySelector(`[${MARK}]`)) continue
           if (!child.hasAttribute(GLASS_ROOT)) child.setAttribute(GLASS_ROOT, '')
         }
+        // 再扫一遍「浮动小面板」：选中文字工具条、菜单、预览卡等。
+        // 这些元素常常没有自己的背景，透明后底下文字会穿上来。
+        const surfaceSelector = "[role='menu'], [role='toolbar'], [role='listbox'], [role='tooltip'], [data-trigger-menu], [class*='_toolbar'], [class*='_selection'], [class*='_popover'], [class*='_menu_'], [class$='_menu']"
+        for (const el of document.querySelectorAll(surfaceSelector)) {
+          if (!(el instanceof HTMLElement) || el.hasAttribute(GLASS_SURFACE)) continue
+          const style = getComputedStyle(el)
+          if (style.position !== 'fixed' && style.position !== 'absolute') continue
+          const rect = el.getBoundingClientRect()
+          if (rect.width < 80 || rect.height < 20 || rect.width > window.innerWidth * 0.95) continue
+          el.setAttribute(GLASS_SURFACE, '')
+        }
       }
 
       markColumns () {
@@ -1362,6 +1381,8 @@ ${wallpaperCss(cfg)}
           this.marks[key] = null
         }
         for (const element of document.querySelectorAll(`[${GLASS_ROOT}]`)) element.removeAttribute(GLASS_ROOT)
+        for (const element of document.querySelectorAll(`[${GLASS_SURFACE}]`)) element.removeAttribute(GLASS_SURFACE)
+        for (const element of document.querySelectorAll(`[${GLASS_SURFACE}]`)) element.removeAttribute(GLASS_SURFACE)
         if (this.brandInject) {
           this.brandInject()
           this.brandInject = null
