@@ -739,7 +739,10 @@ html::after {
      * 变量由控制器写到 html 上（--dshui-frost-<area>）；0px 等于关闭。
      */
     function frostDeclarations (cfg, key) {
-      const name = `--dshui-frost-${key || 'overlayFrost'}`
+      // 只有底部输入栏保留实时磨砂（默认不透明度可能是 0，纯色会看不见）；
+      // 其余表面用纯色/预模糊壁纸，避免 backdrop-filter 在元素边缘采样出黑边。
+      if (key !== 'composerFrost') return ''
+      const name = `--dshui-frost-${key}`
       return `\n  backdrop-filter: blur(var(${name}, 0px));\n  -webkit-backdrop-filter: blur(var(${name}, 0px));`
     }
 
@@ -847,62 +850,38 @@ html ${mode}[class*='_quotePreview'] {
   --dsw-specific-selector: ${fill};
 }`)
       }
-      if (frost) {
-        rules.push(`html [${MARK}='rightbar'] [data-dockkit-host],
-html [${MARK}='rightbar'] [data-dockkit-float] {
-  position: relative;
-  isolation: isolate;
-}`)
-        rules.push(`html [${MARK}='rightbar'] [data-dockkit-host]::before,
-html [${MARK}='rightbar'] [data-dockkit-float]::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  pointer-events: none;${filesFrost}
-}`)
-      }
-      // 对话框 / 底部输入框：
-      // - 对话框也不能直接把 backdrop-filter 加在元素上（否则里面 position:fixed 的色盘弹层会被
-      //   当成相对对话框定位，飘到屏幕外）。改成 ::before 图层（dialog 自身是 fixed/堆叠上下文，无需再定位）。
-      // - 底部输入区的 data-slot 是 display:contents，加滤镜无效；真正要磨的是卡片和底部统计条。
-      if (frost) {
-        rules.push(`html [role='dialog']::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  pointer-events: none;${frost}
-}`)
-        rules.push(`html [data-slot='conversation.composer'] [class$='_card'] {${composerFrost}\n}`)
-        // 输入区里的引用/附件小卡片：给它们自己的玻璃底，别让对话文字从底下穿出来。
-        rules.push(`html [data-slot='conversation.composer'] [class*='_quote'],
+      // 底部输入栏是唯一保留实时磨砂的表面（默认不透明度可能为 0）。
+      rules.push(`html [data-slot='conversation.composer'] [class$='_card'] {${composerFrost}\n}`)
+      rules.push(`html [data-slot='conversation.composer'] [class*='_quote'],
 html [data-slot='conversation.composer'] [class*='_chip'],
 html [data-slot='conversation.composer'] [class*='_refChip'] {
   border-radius: 12px;
   background-color: ${withAlpha(light.overlay.color, clamp(light.overlay.alpha, 0.4, 0.95))};${composerFrost}
 }`)
-        rules.push(`html body[data-ds-dark-theme] [data-slot='conversation.composer'] [class*='_quote'],
+      rules.push(`html body[data-ds-dark-theme] [data-slot='conversation.composer'] [class*='_quote'],
 html body[data-ds-dark-theme] [data-slot='conversation.composer'] [class*='_chip'],
 html body[data-ds-dark-theme] [data-slot='conversation.composer'] [class*='_refChip'] {
   background-color: ${withAlpha(dark.overlay.color, clamp(dark.overlay.alpha, 0.4, 0.95))};
 }`)
-        rules.push(`html [data-composer-dock] {
+      rules.push(`html [data-composer-dock] {
   border-radius: 12px;
   background-color: ${glass(light, 'composer')};${composerFrost}
 }`)
-        rules.push(`html body[data-ds-dark-theme] [data-composer-dock] {
+      rules.push(`html body[data-ds-dark-theme] [data-composer-dock] {
   background-color: ${glass(dark, 'composer')};
 }`)
-      }
       // Windows 桌面：DSH 只给内容区左上角 16px 圆角；皮肤铺满壁纸后那个缺口会显脏，统一拍平。
       rules.push(`html [${MARK}='center'],
 html body[data-ds-dark-theme] [${MARK}='center'] { border-radius: 0 !important; }`)
-      // 窗口标题条（Windows）用 sidebar-fill 画，跟着左侧栏一起透明。
-      rules.push(`html [${MARK}='frame'] {\n  background-color: transparent !important;\n  --dsw-specific-sidebar-fill: ${glass(light, 'sidebar')};\n}`)
-      rules.push(`html body[data-ds-dark-theme] [${MARK}='frame'] {\n  background-color: transparent !important;\n  --dsw-specific-sidebar-fill: ${glass(dark, 'sidebar')};\n}`)
+      // 窗口容器：用侧栏玻璃色兜底，避免窗口边缘/圆角处露出黑底。
+      rules.push(`html [${MARK}='frame'] {\n  background-color: ${glass(light, 'sidebar')};\n  --dsw-specific-sidebar-fill: ${glass(light, 'sidebar')};\n}`)
+      rules.push(`html body[data-ds-dark-theme] [${MARK}='frame'] {\n  background-color: ${glass(dark, 'sidebar')};\n  --dsw-specific-sidebar-fill: ${glass(dark, 'sidebar')};\n}`)
+      // 对话框底色和页面玻璃统一（之前带 backdrop-filter 时边缘会发黑）。
+      for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
+        rules.push(`html ${mode}[role='dialog'] {
+  background-color: ${withAlpha(state.overlay.color, clamp(state.overlay.alpha, 0.8, 0.98))};
+}`)
+      }
       return `
 /* dsh-ui-skin: base layers */
 html > body,
@@ -1227,8 +1206,14 @@ ${wallpaperCss(cfg)}
         // 再扫一遍「浮动小面板」：选中文字工具条、菜单、预览卡等。
         // 这些元素常常没有自己的背景，透明后底下文字会穿上来。
         const surfaceSelector = "[role='menu'], [role='toolbar'], [role='listbox'], [role='tooltip'], [data-trigger-menu], [class*='_toolbar'], [class*='_selection'], [class*='_popover'], [class*='_menu_'], [class*='_textInteraction'], [class*='_jump'], [class*='_scrollButton'], [class*='_scrollTo'], [class*='_toBottom'], [class*='_backTo'], [class$='_menu']"
+        // 先清掉上一轮标记：组件可能已经变化，避免旧的玻璃底残留（例如按钮里的文字 span）。
+        for (const stale of document.querySelectorAll(`[${GLASS_SURFACE}]`)) stale.removeAttribute(GLASS_SURFACE)
         for (const el of document.querySelectorAll(surfaceSelector)) {
-          if (!(el instanceof HTMLElement) || el.hasAttribute(GLASS_SURFACE)) continue
+          if (!(el instanceof HTMLElement)) continue
+          // 只处理真正浮起来的面板：static/inline 的标签（按钮文字等）绝不能染背景。
+          if (el.closest('button, a, label, input, textarea')) continue
+          const style = getComputedStyle(el)
+          if (style.position !== 'fixed' && style.position !== 'absolute') continue
           const rect = el.getBoundingClientRect()
           if (rect.width < 20 || rect.height < 16 || rect.width > window.innerWidth * 0.95) continue
           // 语义上的菜单/工具条允许大尺寸；其余按类名命中的只收小按钮，
