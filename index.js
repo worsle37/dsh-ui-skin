@@ -50,6 +50,8 @@ export const Config = z.object({
   filesColor: z.string().default('#151517').volatile(),
   /** 右侧「工作区文件」栏不透明度（0-100）。 */
   filesOpacity: z.number().step(1).min(0).max(100).default(78).volatile(),
+  /** 右侧栏是否直接沿用左侧边栏的配色（底色 + 不透明度）。 */
+  filesFollowSidebar: z.boolean().default(true).volatile(),
 
   /** 左侧边栏底色。 */
   sidebarColor: z.string().default('#1b1b1c').volatile(),
@@ -66,6 +68,8 @@ export const Config = z.object({
 
   /** 弹层 / 对话框 / 菜单 / 悬浮卡片的不透明度（0-100）。 */
   overlayOpacity: z.number().step(1).min(0).max(100).default(88).volatile(),
+  /** 磨砂玻璃模糊半径（0-40 px；0 = 关闭）。只作用于左右侧栏、对话框、底部输入框。 */
+  frostBlur: z.number().step(1).min(0).max(40).default(10).volatile(),
   /** 全局文字颜色；空串 = 跟随主题（自动可读）。 */
   fontColor: z.string().default('').volatile(),
   /** 对比度不足时自动提高面板不透明度。 */

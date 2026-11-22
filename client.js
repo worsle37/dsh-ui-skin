@@ -55,12 +55,14 @@ window.__ModuleLoader__.load({
       chatOpacity: 72,
       filesColor: '#151517',
       filesOpacity: 78,
+      filesFollowSidebar: true,
       sidebarColor: '#1b1b1c',
       sidebarOpacity: 86,
       composerColor: '#2c2c2e',
       composerOpacity: 88,
       accentColor: '#4176e6',
       overlayOpacity: 88,
+      frostBlur: 10,
       fontColor: '',
       autoContrast: true,
       heroTitle: '',
@@ -276,12 +278,14 @@ window.__ModuleLoader__.load({
         chatOpacity: Math.round(pickNumber('chatOpacity', 0, 100)),
         filesColor: safeColor(source.filesColor, DEFAULTS.filesColor),
         filesOpacity: Math.round(pickNumber('filesOpacity', 0, 100)),
+        filesFollowSidebar: source.filesFollowSidebar !== false,
         sidebarColor: safeColor(source.sidebarColor, DEFAULTS.sidebarColor),
         sidebarOpacity: Math.round(pickNumber('sidebarOpacity', 0, 100)),
         composerColor: safeColor(source.composerColor, DEFAULTS.composerColor),
         composerOpacity: Math.round(pickNumber('composerOpacity', 0, 100)),
         accentColor: safeColor(source.accentColor, DEFAULTS.accentColor),
         overlayOpacity: Math.round(pickNumber('overlayOpacity', 0, 100)),
+        frostBlur: Math.round(pickNumber('frostBlur', 0, 40)),
         fontColor: typeof source.fontColor === 'string' && isColor(source.fontColor) ? source.fontColor : '',
         autoContrast: source.autoContrast !== false,
         heroTitle: typeof source.heroTitle === 'string' ? source.heroTitle.slice(0, 120) : '',
@@ -622,6 +626,11 @@ html::after {
       const chat = area(cfg.chatColor, cfg.chatOpacity, DEFAULTS.chatColor)
       const files = area(cfg.filesColor, cfg.filesOpacity, DEFAULTS.filesColor)
       const sidebar = area(cfg.sidebarColor, cfg.sidebarOpacity, DEFAULTS.sidebarColor)
+      // 右栏可以直接沿用左栏配色（用户要求「右侧展开栏和左侧工作文件夹区一样」）。
+      if (cfg.filesFollowSidebar) {
+        files.color = sidebar.color
+        files.alpha = sidebar.alpha
+      }
       const composer = area(cfg.composerColor, cfg.composerOpacity, DEFAULTS.composerColor)
       const chatVariant = surfaceVariants(cfg.chatColor, DEFAULTS.chatColor)[scheme]
       const overlayBase = overlayColorOf(chatVariant)
@@ -647,21 +656,38 @@ html::after {
      * 生成整段皮肤 CSS：壁纸层、body/frame 透明、三列各自的玻璃层与作用域 token。
      * light/dark 是 resolveSkin 的两套结果（自定义属性按 body[data-ds-dark-theme] 切换）。
      */
+    /**
+     * 磨砂玻璃：只作用于用户指定的四处——左右侧栏、对话框、底部输入框。
+     * 刻意不做「所有卡片都磨」的大范围 backdrop-filter：那种大量模糊层在部分机器上会把渲染搞挂。
+     */
+    function frostDeclarations (cfg) {
+      const blur = Math.round(clamp(cfg.frostBlur, 0, 40))
+      if (blur <= 0) return ''
+      return `\n  backdrop-filter: blur(${blur}px);\n  -webkit-backdrop-filter: blur(${blur}px);`
+    }
+
     function buildCss (cfg, light, dark) {
       const rules = []
       const glass = (state, key) => withAlpha(state[key].color, state[key].alpha)
+      const frost = frostDeclarations(cfg)
       // 左列 / 中列：列本身画唯一一层玻璃，内部表面 token 全部透明（见 areaDeclarations）。
       for (const [mark, key] of [['center', 'chat'], ['sidebar', 'sidebar']]) {
-        rules.push(`html [${MARK}='${mark}'] {\n  background-color: ${glass(light, key)};\n${areaDeclarations(light[key].color, light[key].alpha)}\n}`)
-        rules.push(`html body[data-ds-dark-theme] [${MARK}='${mark}'] {\n  background-color: ${glass(dark, key)};\n${areaDeclarations(dark[key].color, dark[key].alpha)}\n}`)
+        const columnFrost = mark === 'sidebar' ? frost : ''
+        rules.push(`html [${MARK}='${mark}'] {\n  background-color: ${glass(light, key)};\n${areaDeclarations(light[key].color, light[key].alpha)}${columnFrost}\n}`)
+        rules.push(`html body[data-ds-dark-theme] [${MARK}='${mark}'] {\n  background-color: ${glass(dark, key)};\n${areaDeclarations(dark[key].color, dark[key].alpha)}${columnFrost}\n}`)
       }
       // 右列是 0 宽的轨道（面板挂在上面），画列没用；由 dockkit 容器画一层玻璃。
       for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
         rules.push(`html ${mode}[${MARK}='rightbar'] {\n${areaDeclarations(state.files.color, state.files.alpha)}\n}`)
         rules.push(`html ${mode}[${MARK}='rightbar'] [data-dockkit-host],
 html ${mode}[${MARK}='rightbar'] [data-dockkit-float] {
-  background-color: ${glass(state, 'files')};
+  background-color: ${glass(state, 'files')};${frost}
 }`)
+      }
+      // 对话框 / 底部输入框：同样是玻璃表面。
+      if (frost) {
+        rules.push(`html [role='dialog'] {${frost}\n}`)
+        rules.push(`html [data-slot='conversation.composer'] {${frost}\n}`)
       }
       // Windows 桌面：DSH 只给内容区左上角 16px 圆角；皮肤铺满壁纸后那个缺口会显脏，统一拍平。
       rules.push(`html [${MARK}='center'],
@@ -1620,6 +1646,12 @@ ${wallpaperCss(cfg)}
         preset: '推荐配色',
         chat: '对话界面',
         files: '工作区文件栏',
+        filesFollow: '跟随左侧边栏配色',
+        filesFollowHint: '打开后右栏直接用左侧边栏的底色和不透明度；关掉后下面两项才能单独调右栏。',
+        frost: '磨砂玻璃',
+        frostHint: '只给左右侧边栏、对话框、底部输入框加磨砂；中间对话区保持清晰。',
+        frostBlur: '磨砂强度',
+        frostBlurHint: '0 = 关闭，建议 8–16；调大更雾，也更吃显卡。',
         sidebar: '左侧边栏',
         surfaceHint: '不透明度越低，壁纸透出越多。',
         opacity: '不透明度',
@@ -1681,6 +1713,12 @@ ${wallpaperCss(cfg)}
         preset: 'Presets',
         chat: 'Chat panel',
         files: 'Workspace files panel',
+        filesFollow: 'Match left sidebar colors',
+        filesFollowHint: 'When on, the right panel uses the left sidebar base color and opacity. Turn it off to tune the right panel separately.',
+        frost: 'Frosted glass',
+        frostHint: 'Frosts only the left/right sidebars, dialogs, and the bottom input bar; the chat area stays crisp.',
+        frostBlur: 'Frost strength',
+        frostBlurHint: '0 = off, 8–16 is a good range. Higher is hazier and heavier on the GPU.',
         sidebar: 'Left sidebar',
         surfaceHint: 'Lower opacity shows more wallpaper.',
         opacity: 'Opacity',
@@ -1861,6 +1899,12 @@ ${wallpaperCss(cfg)}
           ),
         ),
 
+        h(Card, { title: t('frost'), hint: t('frostHint') },
+          h(Row, { label: t('frostBlur'), hint: t('frostBlurHint') },
+            h(Slider, { value: config.frostBlur, min: 0, max: 40, onChange: (value) => update({ frostBlur: value }), suffix: 'px' }),
+          ),
+        ),
+
         h(Card, { title: t('wallpaper'), hint: t('wallpaperHint') },
           h(Row, { label: t('mode') },
             h('div', { className: 'dshuiskin-seg' },
@@ -1946,12 +1990,19 @@ ${wallpaperCss(cfg)}
         ),
 
         h(Card, { title: t('files'), hint: t('surfaceHint') },
-          h(Row, { label: t('opacity') },
-            h(Slider, { value: config.filesOpacity, min: 0, max: 100, onChange: (value) => update({ filesOpacity: value }), suffix: '%' }),
+          h(Row, { label: t('filesFollow'), hint: t('filesFollowHint') },
+            h(Switch, { checked: config.filesFollowSidebar, onChange: (value) => update({ filesFollowSidebar: value }), label: t('filesFollow') }),
           ),
-          h(Row, { label: t('baseColor') },
-            h(ColorField, { value: config.filesColor, onChange: (value) => update({ filesColor: value }) }),
-          ),
+          config.filesFollowSidebar
+            ? null
+            : h(Row, { label: t('opacity') },
+              h(Slider, { value: config.filesOpacity, min: 0, max: 100, onChange: (value) => update({ filesOpacity: value }), suffix: '%' }),
+            ),
+          config.filesFollowSidebar
+            ? null
+            : h(Row, { label: t('baseColor') },
+              h(ColorField, { value: config.filesColor, onChange: (value) => update({ filesColor: value }) }),
+            ),
         ),
 
         h(Card, { title: t('sidebar'), hint: t('surfaceHint') },
