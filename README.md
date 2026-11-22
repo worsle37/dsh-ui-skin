@@ -4,7 +4,7 @@
 玻璃质感的弹层、底部输入栏与交互配色、全局文字颜色、首页标题文字。
 全部在 **设置 → 外观** 里调，改完立即生效。
 
-![界面皮肤：半透明面板 + 壁纸](docs/preview.svg)
+![桌面版效果：磨砂玻璃 + 壁纸](docs/preview-desktop.jpg)
 
 ## 功能
 
@@ -110,7 +110,7 @@ dsh-ui-skin/
 ├─ client.js           # 浏览器半：玻璃皮肤 / 设置页 / 首页补丁（全部逻辑）
 ├─ locale/{zh,en}.json # 插件页显示的标题与说明
 ├─ icon.svg            # 插件图标
-├─ docs/               # 插件详情页图片（preview.svg）
+├─ docs/               # 插件详情页图片（preview-desktop.jpg 实拍 / preview.svg 示意图）
 ├─ scripts/dev-instance.ps1  # 起隔离测试实例（不碰 desktop）
 └─ LICENSE
 ```
