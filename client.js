@@ -727,12 +727,32 @@ html ${mode}[${MARK}='rightbar'] [data-dockkit-float] {
   background-color: ${glass(state, 'files')};
 }`)
       }
+      // 窗口最上面的「应用/编辑」标题条（Windows 的 titlebar 区域）：也要磨砂。
+      // 不能把 backdrop-filter 加在 frame 容器上（会再次把 fixed 后代带偏），
+      // 只加在标题条自身/它的 ::before 绘制层上。
+      if (frost) {
+        rules.push(`html [data-windows-titlebar],
+html [${MARK}='frame']::before {
+  backdrop-filter: blur(${Math.round(clamp(cfg.frostBlur, 0, 40))}px);
+  -webkit-backdrop-filter: blur(${Math.round(clamp(cfg.frostBlur, 0, 40))}px);
+}`)
+      }
+      // 页面视图（插件页/统计页等，页头带 _pageBar）：
+      // 整块页面直接用「弹层与菜单」的底色 + 不透明度（和对话框同款），再叠加磨砂；
+      // 这样页头、页体是同一块玻璃，不会出现"标题一条实心色带、下面透壁纸"的割裂。
+      if (frost) {
+        for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
+          rules.push(`html ${mode}[${MARK}='center']:has([class*='_pageBar']) {
+  background-color: ${withAlpha(state.overlay.color, state.overlay.alpha)};
+}`)
+        }
+      }
       // 页面内的粘性标题条（插件页/设置页等）默认透明，滚动内容会穿上来重影。
-      // 给它一层弹层玻璃 + 磨砂，颜色/不透明度跟着「弹层与菜单」走。
+      // 颜色/不透明度跟「弹层与菜单」一致，叠在页面玻璃上只多一点点，不会割裂。
       for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
         rules.push(`html ${mode}[class*='_pageBar'],
 html ${mode}[class*='_pageHead'] {
-  background-color: ${withAlpha(state.overlay.color, clamp(state.overlay.alpha, 0.35, 0.95))};${frost}
+  background-color: ${withAlpha(state.overlay.color, clamp(state.overlay.alpha * 0.55, 0.2, 0.9))};${frost}
 }`)
       }
       // DSH 的「菜单/浮层」用 data-trigger-menu + data-menu-material 标记，但背景是空的
