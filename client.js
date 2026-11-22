@@ -37,7 +37,6 @@ window.__ModuleLoader__.load({
     const MARK = 'data-dsh-ui-skin'
 const GLASS_ROOT = 'data-dshui-glass'
 const GLASS_SURFACE = 'data-dshui-surface'
-const GLASS_SURFACE = 'data-dshui-surface'
     /** 设置服务缺席时的退化存储 key。 */
     const LOCAL_KEY = 'dsh.ui-skin.config.v1'
 
