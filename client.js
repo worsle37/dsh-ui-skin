@@ -564,7 +564,7 @@ html::after {
      *    这两档按弹层色/弹层不透明度给。
      *  - 卡片、代码块、气泡这些「不是铺满的」表面给一个较低的同色 alpha（subtle）。
      */
-    function areaDeclarations (color, alpha, overlay) {
+    function areaDeclarations (color, alpha, overlay, layers) {
       const dark = luminance(color) < 0.5
       const subtle = Math.min(0.5, Math.round(alpha * 0.45 * 1000) / 1000)
       const entries = [
@@ -579,6 +579,14 @@ html::after {
         entries.push(['--dsw-alias-bg-overlay', overlayFill])
         entries.push(['--dsw-alias-bg-module-platform', overlayFill])
         entries.push(['--dsw-specific-menu', overlayFill])
+        // 对话区里的「浮层卡片」（轮次导航预览、引用卡等）用 layer 系 token 画底；
+        // 这里给它们一档弹层玻璃，否则会完全透明、底下文字穿上来。
+        if (layers) {
+          const layerFill = withAlpha(overlay.color, clamp(overlay.alpha, 0.45, 0.98))
+          entries.push(['--dsw-alias-bg-layer-1', layerFill])
+          entries.push(['--dsw-alias-bg-layer-2', layerFill])
+          entries.push(['--dsw-alias-bg-layer-3', layerFill])
+        }
       } else {
         entries.push(['--dsw-alias-bg-overlay', 'transparent'])
         entries.push(['--dsw-alias-bg-module-platform', 'transparent'])
@@ -686,8 +694,25 @@ html::after {
       const frost = frostDeclarations(cfg)
       // 左列 / 中列：列本身画唯一一层玻璃，内部表面 token 见 areaDeclarations。
       for (const [mark, key] of [['center', 'chat'], ['sidebar', 'sidebar']]) {
-        rules.push(`html [${MARK}='${mark}'] {\n  background-color: ${glass(light, key)};\n${areaDeclarations(light[key].color, light[key].alpha, light.overlay)}\n}`)
-        rules.push(`html body[data-ds-dark-theme] [${MARK}='${mark}'] {\n  background-color: ${glass(dark, key)};\n${areaDeclarations(dark[key].color, dark[key].alpha, dark.overlay)}\n}`)
+        const layers = mark === 'center'
+        rules.push(`html [${MARK}='${mark}'] {\n  background-color: ${glass(light, key)};\n${areaDeclarations(light[key].color, light[key].alpha, light.overlay, layers)}\n}`)
+        rules.push(`html body[data-ds-dark-theme] [${MARK}='${mark}'] {\n  background-color: ${glass(dark, key)};\n${areaDeclarations(dark[key].color, dark[key].alpha, dark.overlay, layers)}\n}`)
+      }
+      // 页面视图（插件页/统计页等，页头带 _pageBar）把中列背后也磨砂；
+      // 对话视图没有 _pageBar，保持清晰（用户要求对话背景不要整窗磨砂）。
+      if (frost) {
+        rules.push(`html [${MARK}='center'] {
+  position: relative;
+  isolation: isolate;
+}`)
+        rules.push(`html [${MARK}='center']::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}`)
+        rules.push(`html [${MARK}='center']:has([class*='_pageBar'])::before {${frost}\n}`)
       }
       // 磨砂图层的公共写法：独立 ::before，避免改掉容器的 fixed 包含块。
       if (frost) {
@@ -709,6 +734,16 @@ html ${mode}[${MARK}='rightbar'] [data-dockkit-float] {
 html ${mode}[class*='_pageHead'] {
   background-color: ${withAlpha(state.overlay.color, clamp(state.overlay.alpha, 0.35, 0.95))};${frost}
 }`)
+      }
+      // DSH 的「菜单/浮层」用 data-trigger-menu + data-menu-material 标记，但背景是空的
+      // （靠调用方补），所以指令面板、轮次预览这类 popover 会透明透字。这里统一补一层玻璃底 + 磨砂。
+      if (frost) {
+        for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
+          const fill = withAlpha(state.overlay.color, clamp(state.overlay.alpha, 0.55, 0.98))
+          rules.push(`html ${mode}[data-trigger-menu][data-menu-material] {
+  background-color: ${fill};${frost}
+}`)
+        }
       }
       // body 下的浮层容器（指令面板/引用卡/Toast）：把内部的「层」token 换成弹层玻璃，
       // 这样它们自带的背景不再透明，底下文字不会穿出来。
