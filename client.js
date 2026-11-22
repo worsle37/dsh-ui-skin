@@ -639,6 +639,8 @@ html::after {
         // 对话框后面通常还有半透明遮罩，按「遮罩之后的背景」估算可读性
         overlayAlpha = ensureReadable(overlayAlpha, overlayBase, blendRgb(wall, { r: 0, g: 0, b: 0 }, 0.5), text)
       }
+      // 开磨砂时把对话框底色调薄一点，否则 88% 不透明度看不出模糊。
+      if (cfg.frostBlur > 0) overlayAlpha = clamp(overlayAlpha * 0.85, 0.5, 1)
       return {
         scheme,
         wall,
@@ -707,10 +709,27 @@ html [${MARK}='rightbar'] [data-dockkit-float]::before {
   pointer-events: none;${frost}
 }`)
       }
-      // 对话框 / 底部输入框没有这类浮动后代，直接加在元素上即可。
+      // 对话框 / 底部输入框：
+      // - 对话框也不能直接把 backdrop-filter 加在元素上（否则里面 position:fixed 的色盘弹层会被
+      //   当成相对对话框定位，飘到屏幕外）。改成 ::before 图层（dialog 自身是 fixed/堆叠上下文，无需再定位）。
+      // - 底部输入区的 data-slot 是 display:contents，加滤镜无效；真正要磨的是卡片和底部统计条。
       if (frost) {
-        rules.push(`html [role='dialog'] {${frost}\n}`)
-        rules.push(`html [data-slot='conversation.composer'] {${frost}\n}`)
+        rules.push(`html [role='dialog']::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;${frost}
+}`)
+        rules.push(`html [data-slot='conversation.composer'] [class$='_card'] {${frost}\n}`)
+        rules.push(`html [data-composer-dock] {
+  border-radius: 12px;
+  background-color: ${glass(light, 'composer')};${frost}
+}`)
+        rules.push(`html body[data-ds-dark-theme] [data-composer-dock] {
+  background-color: ${glass(dark, 'composer')};
+}`)
       }
       // Windows 桌面：DSH 只给内容区左上角 16px 圆角；皮肤铺满壁纸后那个缺口会显脏，统一拍平。
       rules.push(`html [${MARK}='center'],

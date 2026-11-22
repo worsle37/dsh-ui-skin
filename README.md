@@ -133,6 +133,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev-instance.ps1 -St
 
 ## 更新记录
 
+- **0.2.4**：修三处磨砂相关的 bug——① 外观页的色环弹层被对话框的 `backdrop-filter` 带偏/裁掉，改成
+  `::before` 图层后恢复正常定位；② 底部输入框的 `data-slot` 是 `display: contents`、加了滤镜也没用，
+  改为直接磨真正的输入卡片；③ 底部统计条（步数/命中率）补上玻璃底色 + 磨砂，不再被对话文字穿透覆盖；
+  开磨砂时对话框底色略调薄，磨砂才看得出来。
 - **0.2.3**：修复开磨砂后 **Ctrl+B 收起侧边栏按钮飘位**——模糊层从容器改到 `::before` 独立图层，
   不再让侧栏成为 `position: fixed` 后代的包含块；同时修掉 `package.json` 的 BOM（会让 `dsh plugin`
   安装校验报 `Unexpected token`）。
