@@ -1178,13 +1178,17 @@ ${wallpaperCss(cfg)}
         }
         // 再扫一遍「浮动小面板」：选中文字工具条、菜单、预览卡等。
         // 这些元素常常没有自己的背景，透明后底下文字会穿上来。
-        const surfaceSelector = "[role='menu'], [role='toolbar'], [role='listbox'], [role='tooltip'], [data-trigger-menu], [class*='_toolbar'], [class*='_selection'], [class*='_popover'], [class*='_menu_'], [class*='_textInteraction'], [class*='_jump'], [class*='_scroll'], [class*='_toBottom'], [class*='_backTo'], [class$='_menu']"
+        const surfaceSelector = "[role='menu'], [role='toolbar'], [role='listbox'], [role='tooltip'], [data-trigger-menu], [class*='_toolbar'], [class*='_selection'], [class*='_popover'], [class*='_menu_'], [class*='_textInteraction'], [class*='_jump'], [class*='_scrollButton'], [class*='_scrollTo'], [class*='_toBottom'], [class*='_backTo'], [class$='_menu']"
         for (const el of document.querySelectorAll(surfaceSelector)) {
           if (!(el instanceof HTMLElement) || el.hasAttribute(GLASS_SURFACE)) continue
           const style = getComputedStyle(el)
           if (style.position !== 'fixed' && style.position !== 'absolute') continue
           const rect = el.getBoundingClientRect()
           if (rect.width < 20 || rect.height < 16 || rect.width > window.innerWidth * 0.95) continue
+          // 语义上的菜单/工具条允许大尺寸；其余按类名命中的只收小按钮，
+          // 避免把滚动渐隐条（宽条）之类当成浮层染上背景。
+          const semantic = el.matches("[role='menu'], [role='toolbar'], [role='listbox'], [role='tooltip'], [data-trigger-menu], [class*='_textInteraction']")
+          if (!semantic && (rect.width > 260 || rect.height > 260)) continue
           el.setAttribute(GLASS_SURFACE, '')
         }
       }
