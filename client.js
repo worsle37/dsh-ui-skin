@@ -820,7 +820,7 @@ html ${mode}[class*='_pageHead'] {
       // （靠调用方补），所以指令面板、轮次预览这类 popover 会透明透字。这里统一补一层玻璃底 + 磨砂。
       if (frost) {
         for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
-          const fill = withAlpha(state.overlay.color, clamp(state.overlay.alpha, 0.55, 0.98))
+          const fill = withAlpha(state.overlay.color, clamp(state.overlay.alpha, 0.9, 0.99))
           rules.push(`html ${mode}[data-trigger-menu][data-menu-material] {
   background-color: ${fill};${frost}
 }`)
@@ -830,7 +830,7 @@ html ${mode}[class*='_pageHead'] {
       // 这里对已知组件用「静态 CSS」直接覆盖，避免等 JS 异步打标记时的透明闪现；
       // 圆角交给组件自己的样式，不强行覆盖。
       for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
-        const fill = withAlpha(state.overlay.color, clamp(state.overlay.alpha, 0.6, 0.99))
+        const fill = withAlpha(state.overlay.color, clamp(state.overlay.alpha, 0.92, 0.99))
         rules.push(`html ${mode}[${GLASS_SURFACE}],
 html ${mode}[class*='_textInteraction'],
 html ${mode}[class*='_selectionPreview'],
@@ -841,7 +841,7 @@ html ${mode}[class*='_quotePreview'] {
       }
       // body 下的浮层容器（指令面板/引用卡/Toast）：把内部的「层」token 换成弹层玻璃，      // 这样它们自带的背景不再透明，底下文字不会穿出来。
       for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
-        const fill = withAlpha(state.overlay.color, clamp(state.overlay.alpha, 0.45, 0.98))
+        const fill = withAlpha(state.overlay.color, clamp(state.overlay.alpha, 0.88, 0.99))
         rules.push(`html ${mode}[${GLASS_ROOT}] {
   --dsw-alias-bg-layer-1: ${fill};
   --dsw-alias-bg-layer-2: ${fill};
