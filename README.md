@@ -14,7 +14,7 @@
 | 改透明度 | 对话界面、工作区文件栏、左侧边栏、底部输入栏、弹层菜单各自一个不透明度 |
 | 改 bottom 和交互色 | 底部输入栏底色单独调；发送键、链接、焦点框、选中描边共用一个「交互强调色」 |
 | 文件栏和对话分开设置 | 两者是独立的两张卡；右栏也可以一键「跟随左侧边栏配色」 |
-| 磨砂玻璃 | 只给左右侧栏、对话框、底部输入框加磨砂（`backdrop-filter`），中间对话区保持清晰；强度可调 |
+| 磨砂玻璃 | 左右侧栏/页面用「预先烤好的模糊壁纸」做玻璃底，底部输入栏保留实时磨砂；强度按部位单独调 |
 | 轨迹 / 统计等子页面也要透 | 页面、表格、卡片统一走「一列一层玻璃」方案，不会因为多层叠加变成实心 |
 | 文字看得清 | 默认自动提高可读性：对比度不够时自动加深对应面板；也可以自己指定文字颜色 |
 | 首页那行字改成自己的 | 大标题、「预览版」小标签都能换文字、换颜色，鲸鱼图标也能换 |
@@ -22,29 +22,36 @@
 
 ## 安装
 
-### 方式 A：本地目录（开发和自用推荐）
+> 前提：DSH **桌面版**（0.2.x）；装完要**完全退出 DSH 再打开**才会加载。
 
-```powershell
-# 1. 先装插件自己的依赖（只用到 DSH 的 schemastery）
-pnpm install
+### 方式 A：插件页一键装（最适合普通用户）
 
-# 2. 装进 desktop profile（注意不是 web）
-dsh plugin --profile desktop add "link:<本目录绝对路径>"
+打开 **设置 → 插件** → 右上角 **添加插件**，粘贴：
 
-# 3. 重启 DSH 桌面版（Host 半的 Config 有新增字段时必须重启）
+```
+github:worsle37/dsh-ui-skin
 ```
 
-也可以在 **插件** 页右上角「添加插件 / Add plugin」里直接选这个目录。
+点「安装」，等它装完（会自动安装依赖），然后**退出 DSH 重新打开**。
+如果你的网络访问 GitHub 很慢，这一步可能卡住——换方式 B。
+
+### 方式 B：命令行
+
+```powershell
+dsh plugin --profile desktop add github:worsle37/dsh-ui-skin
+```
+
+然后重启 DSH。`github:` 安装方式会自动装 `@deepseek-ai/schemastery` 依赖（该包在 npm 公共仓库上）。
+
+### 方式 C：从源码目录（开发/自用）
+
+```powershell
+pnpm install                                              # 1. 装依赖
+dsh plugin --profile desktop add "link:<本目录绝对路径>"     # 2. link 进 desktop profile
+```
 
 > 用 `link:` 安装时 pnpm 不会自动装「被链接包」的依赖，所以第 1 步别省。
-> 从 npm / git 安装（`dsh plugin --profile desktop add github:<owner>/<repo>` 或包名）会自动装依赖。
-> 升级本插件后如果新增/删除了设置字段，也要重启 DSH，旧进程里的 Host 配置 schema 不会热更新。
-
-### 方式 B：从 npm（发布后）
-
-```powershell
-dsh plugin --profile desktop add dsh-ui-skin
-```
+> 升级本插件后如果增删了设置字段，也要重启 DSH，旧进程里的 Host 配置 schema 不会热更新。
 
 安装完重启 DSH，在 **设置 → 外观** 里开始调。
 
