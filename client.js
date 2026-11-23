@@ -54,23 +54,23 @@ const SURFACE_SELECTOR = "[role='menu'], [role='toolbar'], [role='listbox'], [ro
       wallpaperImagePosX: 20,
       wallpaperImagePosY: 100,
       wallpaperImageScale: 104,
-      wallpaperDim: 34,
+      wallpaperDim: 45,
       wallpaperBlur: 0,
       chatColor: '#414e74',
-      chatOpacity: 54,
+      chatOpacity: 82,
       chatFrost: 10,
       filesColor: '#6f77a2',
-      filesOpacity: 68,
+      filesOpacity: 82,
       filesFrost: 15,
       filesFollowSidebar: false,
       sidebarColor: '#313d58',
-      sidebarOpacity: 62,
+      sidebarOpacity: 80,
       sidebarFrost: 2,
       composerColor: '#2f2e2e',
-      composerOpacity: 0,
+      composerOpacity: 60,
       composerFrost: 13,
       accentColor: '#b2a158',
-      overlayOpacity: 85,
+      overlayOpacity: 90,
       frostBlur: 33,
       overlayFrost: 19,
       fontColor: '',
@@ -189,10 +189,15 @@ const SURFACE_SELECTOR = "[role='menu'], [role='toolbar'], [role='listbox'], [ro
      */
     function ensureReadable (alpha, surfaceColor, backdrop, textColor) {
       const surface = hexToRgb(surfaceColor) || { r: 0, g: 0, b: 0 }
+      const backdrops = Array.isArray(backdrop) ? backdrop : [backdrop]
       let value = clamp(alpha, 0, 1)
       while (value < 0.99) {
-        const composite = blendRgb(backdrop, surface, value)
-        if (contrastRatio(textColor, composite) >= 4.5) return Math.round(value * 1000) / 1000
+        let worst = 21
+        for (const bg of backdrops) {
+          const composite = blendRgb(bg, surface, value)
+          worst = Math.min(worst, contrastRatio(textColor, composite))
+        }
+        if (worst >= 5.5) return Math.round(value * 1000) / 1000
         value += 0.02
       }
       return 1
@@ -497,16 +502,29 @@ const SURFACE_SELECTOR = "[role='menu'], [role='toolbar'], [role='listbox'], [ro
             let g = 0
             let b = 0
             let weight = 0
+            const pixels = []
             for (let i = 0; i < data.length; i += 4) {
               const alpha = data[i + 3] / 255
               r += data[i] * alpha
               g += data[i + 1] * alpha
               b += data[i + 2] * alpha
               weight += alpha
+              pixels.push({ r: data[i], g: data[i + 1], b: data[i + 2], lum: (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) / 255 })
             }
             const k = weight || 1
+            // 也取最亮/最暗的 10% 区域的平均色：文字是否读得清取决于「最不利」的那块壁纸，
+            // 只用整张图平均色会让花哨壁纸上的浅色字照样糊。
+            const edgeAverage = (slice) => {
+              if (!slice.length) return { r: r / k, g: g / k, b: b / k }
+              const sum = slice.reduce((acc, p) => ({ r: acc.r + p.r, g: acc.g + p.g, b: acc.b + p.b }), { r: 0, g: 0, b: 0 })
+              return { r: sum.r / slice.length, g: sum.g / slice.length, b: sum.b / slice.length }
+            }
+            const sorted = pixels.slice().sort((a, b2) => a.lum - b2.lum)
+            const edge = Math.max(1, Math.round(sorted.length * 0.1))
             resolve({
               rgb: { r: r / k, g: g / k, b: b / k },
+              bright: edgeAverage(sorted.slice(-edge)),
+              dark: edgeAverage(sorted.slice(0, edge)),
               width: image.naturalWidth || image.width,
               height: image.naturalHeight || image.height,
             })
@@ -677,12 +695,16 @@ html::after {
      * 纯函数；壁纸平均色由控制器采样后传进来。
      * @returns 解析结果，供 CSS 与 token 生成共用
      */
-    function resolveSkin (cfg, scheme, wallpaperRgb) {
-      const wall = blendRgb(
-        wallpaperRgb || (scheme === 'dark' ? { r: 21, g: 21, b: 23 } : { r: 249, g: 250, b: 251 }),
-        { r: 0, g: 0, b: 0 },
-        clamp(cfg.wallpaperDim, 0, 80) / 100,
-      )
+    function resolveSkin (cfg, scheme, wallpaperRgb, wallpaperInfo) {
+      const dim = clamp(cfg.wallpaperDim, 0, 80) / 100
+      const fallbackWall = scheme === 'dark' ? { r: 21, g: 21, b: 23 } : { r: 249, g: 250, b: 251 }
+      const info = wallpaperInfo || {}
+      const avg = info.rgb || wallpaperRgb || fallbackWall
+      const wall = blendRgb(avg, { r: 0, g: 0, b: 0 }, dim)
+      // 最亮/最暗 10% 的壁纸区域：自动可读性要按「最不利的位置」算，而不是整图平均色。
+      const wallBright = blendRgb(info.bright || avg, { r: 0, g: 0, b: 0 }, dim)
+      const wallDark = blendRgb(info.dark || avg, { r: 0, g: 0, b: 0 }, dim)
+      const wallEdges = [wallBright, wallDark]
       const textAuto = scheme === 'dark' ? '#f9fafb' : '#0f1115'
       const customText = isColor(cfg.fontColor)
       const text = customText ? cfg.fontColor : textAuto
@@ -690,7 +712,7 @@ html::after {
         const variants = surfaceVariants(color, fallback)
         const base = scheme === 'dark' ? variants.dark : variants.light
         let alpha = clamp(opacity, 0, 100) / 100
-        if (cfg.autoContrast) alpha = ensureReadable(alpha, base, wall, text)
+        if (cfg.autoContrast) alpha = ensureReadable(alpha, base, wallEdges, text)
         return { color: base, alpha }
       }
       const chat = area(cfg.chatColor, cfg.chatOpacity, DEFAULTS.chatColor)
@@ -706,11 +728,14 @@ html::after {
       const overlayBase = overlayColorOf(chatVariant)
       let overlayAlpha = clamp(cfg.overlayOpacity, 0, 100) / 100
       if (cfg.autoContrast) {
-        // 对话框后面通常还有半透明遮罩，按「遮罩之后的背景」估算可读性
-        overlayAlpha = ensureReadable(overlayAlpha, overlayBase, blendRgb(wall, { r: 0, g: 0, b: 0 }, 0.5), text)
+        // 对话框后面通常还有半透明遮罩，按「遮罩之后的最亮/最暗背景」估算可读性
+        overlayAlpha = ensureReadable(
+          overlayAlpha,
+          overlayBase,
+          [blendRgb(wallBright, { r: 0, g: 0, b: 0 }, 0.5), blendRgb(wallDark, { r: 0, g: 0, b: 0 }, 0.5)],
+          text,
+        )
       }
-      // 开磨砂时把对话框底色调薄一点，否则 88% 不透明度看不出模糊。
-      if (cfg.frostBlur > 0) overlayAlpha = clamp(overlayAlpha * 0.85, 0.5, 1)
       return {
         scheme,
         wall,
@@ -1320,9 +1345,10 @@ ${wallpaperCss(cfg)}
             return
           }
           this.updateWallpaperInfo(config)
+          const wallInfo = this.wallpaperInfo
           const wallRgb = this.wallpaperBaseRgb(config)
-          const light = resolveSkin(config, 'light', wallRgb)
-          const dark = resolveSkin(config, 'dark', wallRgb)
+          const light = resolveSkin(config, 'light', wallRgb, wallInfo)
+          const dark = resolveSkin(config, 'dark', wallRgb, wallInfo)
           // 拖动滑块时配置会连续变化：样式内容没变就别重写 <style>，省掉浏览器重新解析 CSS 的开销。
           const cssKey = JSON.stringify({
             config: { ...config, wallpaperImage: config.wallpaperImage ? config.wallpaperImage.length : 0 },

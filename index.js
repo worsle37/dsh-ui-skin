@@ -37,21 +37,21 @@ export const Config = z.object({
   /** 图片壁纸的缩放（100-250，100 = 刚好铺满窗口）。 */
   wallpaperImageScale: z.number().step(1).min(100).max(250).default(104).volatile(),
   /** 壁纸暗化遮罩强度（0-80）。 */
-  wallpaperDim: z.number().step(1).min(0).max(80).default(34).volatile(),
+  wallpaperDim: z.number().step(1).min(0).max(80).default(45).volatile(),
   /** 壁纸模糊半径（0-40 px）。 */
   wallpaperBlur: z.number().step(1).min(0).max(40).default(0).volatile(),
 
   /** 对话界面底色。 */
   chatColor: z.string().default('#414e74').volatile(),
   /** 对话界面不透明度（0-100），100 = 完全遮住壁纸。 */
-  chatOpacity: z.number().step(1).min(0).max(100).default(54).volatile(),
+  chatOpacity: z.number().step(1).min(0).max(100).default(82).volatile(),
   /** 对话界面磨砂强度（0-40 px）。 */
   chatFrost: z.number().step(1).min(0).max(40).default(10).volatile(),
 
   /** 右侧「工作区文件」栏底色。 */
   filesColor: z.string().default('#6f77a2').volatile(),
   /** 右侧「工作区文件」栏不透明度（0-100）。 */
-  filesOpacity: z.number().step(1).min(0).max(100).default(68).volatile(),
+  filesOpacity: z.number().step(1).min(0).max(100).default(82).volatile(),
   /** 右侧「工作区文件」栏磨砂强度（0-40 px）。 */
   filesFrost: z.number().step(1).min(0).max(40).default(15).volatile(),
   /** 右侧栏是否直接沿用左侧边栏的配色（底色 + 不透明度）。 */
@@ -60,14 +60,14 @@ export const Config = z.object({
   /** 左侧边栏底色。 */
   sidebarColor: z.string().default('#313d58').volatile(),
   /** 左侧边栏不透明度（0-100）。 */
-  sidebarOpacity: z.number().step(1).min(0).max(100).default(62).volatile(),
+  sidebarOpacity: z.number().step(1).min(0).max(100).default(80).volatile(),
   /** 左侧边栏磨砂强度（0-40 px）。 */
   sidebarFrost: z.number().step(1).min(0).max(40).default(2).volatile(),
 
   /** 底部输入栏（输入卡片）底色。 */
   composerColor: z.string().default('#2f2e2e').volatile(),
   /** 底部输入栏不透明度（0-100）。 */
-  composerOpacity: z.number().step(1).min(0).max(100).default(0).volatile(),
+  composerOpacity: z.number().step(1).min(0).max(100).default(60).volatile(),
   /** 底部输入栏磨砂强度（0-40 px）。 */
   composerFrost: z.number().step(1).min(0).max(40).default(13).volatile(),
 
@@ -75,7 +75,7 @@ export const Config = z.object({
   accentColor: z.string().default('#b2a158').volatile(),
 
   /** 弹层 / 对话框 / 菜单 / 悬浮卡片的不透明度（0-100）。 */
-  overlayOpacity: z.number().step(1).min(0).max(100).default(85).volatile(),
+  overlayOpacity: z.number().step(1).min(0).max(100).default(90).volatile(),
   /** 弹层 / 对话框 / 菜单的磨砂强度（0-40 px）。 */
   overlayFrost: z.number().step(1).min(0).max(40).default(19).volatile(),
   /** 旧版全局磨砂强度；保留字段只为兼容旧配置，不再使用。 */
