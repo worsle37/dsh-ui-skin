@@ -187,20 +187,53 @@ const SURFACE_SELECTOR = "[role='menu'], [role='toolbar'], [role='listbox'], [ro
      * 的对比度；不够就一点点提高该区域的不透明度，最多到 0.99。
      * @returns {number} 实际使用的不透明度
      */
-    function ensureReadable (alpha, surfaceColor, backdrop, textColor) {
+    /** 一组背景色下，某表面色 + 不透明度对文字的最差对比度。 */
+    function worstContrast (surfaceColor, alpha, backdrops, textColor) {
+      const surface = hexToRgb(surfaceColor) || { r: 0, g: 0, b: 0 }
+      let worst = 21
+      for (const bg of backdrops) {
+        worst = Math.min(worst, contrastRatio(textColor, blendRgb(bg, surface, clamp(alpha, 0, 1))))
+      }
+      return worst
+    }
+
+    /**
+     * 面板最多只能到 0.9：再高就完全看不见壁纸，玻璃感会变成一块实心色。
+     * 如果 0.9 还不够对比度，就把玻璃色本身往「远离文字色」的方向调（深色主题调暗、浅色调亮），
+     * 这样既不牺牲透明感，又能保证字看得清。
+     */
+    function readableSurface (surfaceColor, alpha, backdrops, textColor, scheme, target = 5.5, cap = 0.9, maxBoost = 0.3) {
+      let value = clamp(alpha, 0, cap)
+      let color = surfaceColor
+      // 自动可读最多只把滑块值往上提 maxBoost：滑块仍然是「主导」，不会被顶到看不清用户意图。
+      const ceiling = Math.min(cap, value + maxBoost)
+      while (value < ceiling && worstContrast(color, value, backdrops, textColor) < target) {
+        value = Math.round((value + 0.02) * 1000) / 1000
+      }
+      if (worstContrast(color, value, backdrops, textColor) < target) {
+        const away = scheme === 'dark' ? '#08080a' : '#ffffff'
+        for (let amount = 0.05; amount <= 0.9; amount += 0.05) {
+          const candidate = mixHex(color, away, amount)
+          if (worstContrast(candidate, value, backdrops, textColor) >= target) { color = candidate; break }
+        }
+      }
+      return { color, alpha: value }
+    }
+
+    function ensureReadable (alpha, surfaceColor, backdrop, textColor, target = 5.5) {
       const surface = hexToRgb(surfaceColor) || { r: 0, g: 0, b: 0 }
       const backdrops = Array.isArray(backdrop) ? backdrop : [backdrop]
-      let value = clamp(alpha, 0, 1)
-      while (value < 0.99) {
+      let value = clamp(alpha, 0, 0.9)
+      while (value < 0.9) {
         let worst = 21
         for (const bg of backdrops) {
           const composite = blendRgb(bg, surface, value)
           worst = Math.min(worst, contrastRatio(textColor, composite))
         }
-        if (worst >= 5.5) return Math.round(value * 1000) / 1000
+        if (worst >= target) return Math.round(value * 1000) / 1000
         value += 0.02
       }
-      return 1
+      return 0.9
     }
 
     /**
@@ -711,9 +744,9 @@ html::after {
       const area = (color, opacity, fallback) => {
         const variants = surfaceVariants(color, fallback)
         const base = scheme === 'dark' ? variants.dark : variants.light
-        let alpha = clamp(opacity, 0, 100) / 100
-        if (cfg.autoContrast) alpha = ensureReadable(alpha, base, wallEdges, text)
-        return { color: base, alpha }
+        const alpha = clamp(opacity, 0, 100) / 100
+        if (!cfg.autoContrast) return { color: base, alpha }
+        return readableSurface(base, alpha, wallEdges, text, scheme, 4.5, 0.86)
       }
       const chat = area(cfg.chatColor, cfg.chatOpacity, DEFAULTS.chatColor)
       const files = area(cfg.filesColor, cfg.filesOpacity, DEFAULTS.filesColor)
@@ -725,16 +758,14 @@ html::after {
       }
       const composer = area(cfg.composerColor, cfg.composerOpacity, DEFAULTS.composerColor)
       const chatVariant = surfaceVariants(cfg.chatColor, DEFAULTS.chatColor)[scheme]
-      const overlayBase = overlayColorOf(chatVariant)
+      let overlayBase = overlayColorOf(chatVariant)
       let overlayAlpha = clamp(cfg.overlayOpacity, 0, 100) / 100
       if (cfg.autoContrast) {
         // 对话框后面通常还有半透明遮罩，按「遮罩之后的最亮/最暗背景」估算可读性
-        overlayAlpha = ensureReadable(
-          overlayAlpha,
-          overlayBase,
-          [blendRgb(wallBright, { r: 0, g: 0, b: 0 }, 0.5), blendRgb(wallDark, { r: 0, g: 0, b: 0 }, 0.5)],
-          text,
-        )
+        const edges = [blendRgb(wallBright, { r: 0, g: 0, b: 0 }, 0.5), blendRgb(wallDark, { r: 0, g: 0, b: 0 }, 0.5)]
+        const readable = readableSurface(overlayBase, overlayAlpha, edges, text, scheme)
+        overlayBase = readable.color
+        overlayAlpha = readable.alpha
       }
       return {
         scheme,
@@ -804,8 +835,16 @@ html::after {
       for (const [mode, state] of [['', light], ['body[data-ds-dark-theme] ', dark]]) {
         rules.push(`html ${mode}[${MARK}='rightbar'] {\n${areaDeclarations(state.files.color, state.files.alpha, state.overlay)}\n}`)
         const tint = withAlpha(state.files.color, state.files.alpha)
-        rules.push(`html ${mode}[${MARK}='rightbar'] [data-dockkit-host],
+        // 面板可能挂在右列里，也可能被 portal 到 body（浮层），两种都要画「预模糊壁纸」玻璃底，
+        // 否则右侧工作区会退化成一块纯色。
+        rules.push(`html ${mode}[data-dockkit-host],
+html ${mode}[data-sidebar-right-open],
+html ${mode}[data-dockkit-pane],
+html ${mode}[data-dockkit-float],
+html ${mode}[${MARK}='rightbar'] [data-dockkit-host],
+html ${mode}[${MARK}='rightbar'] [data-dockkit-pane],
 html ${mode}[${MARK}='rightbar'] [data-dockkit-float] {
+  background-color: transparent;
   background-image: linear-gradient(${tint}, ${tint}), var(--dshui-frost-image, none);
   background-size: 100% 100%, var(--dshui-frost-size, cover);
   background-position: 0 0, var(--dshui-frost-position, center);
@@ -1243,6 +1282,10 @@ ${wallpaperCss(cfg)}
           if (child.id === STYLE_ID || child.id === PAGE_STYLE_ID) continue
           if (child.tagName === 'SCRIPT' || child.tagName === 'STYLE' || child.tagName === 'LINK') continue
           if (child.querySelector(`[${MARK}]`)) continue
+          // 右侧工作区/插件面板挂在 dockkit 浮层里，由「预模糊壁纸」那组规则画玻璃底；
+          // 这里再给它盖一层实心 layer token 会变成一块死板的纯色，所以跳过。
+          if (child.matches('[data-dockkit-float], [data-dockkit-pane], [data-dockkit-host]')) continue
+          if (child.querySelector('[data-dockkit-float], [data-dockkit-pane], [data-dockkit-host]')) continue
           if (!child.hasAttribute(GLASS_ROOT)) child.setAttribute(GLASS_ROOT, '')
         }
         // 全量扫描只做兜底（新浮层平时由 MutationObserver 同步打标记）；不再清空旧标记，
